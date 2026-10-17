@@ -110,7 +110,7 @@ CREATE INDEX results_user_recent
 CREATE INDEX results_retention ON match_results(ended_at_ms);
 CREATE INDEX leaderboard_rank ON leaderboard_best(best_mass DESC, user_id ASC);
 
-CREATE TABLE schema_migrations (
+CREATE TABLE IF NOT EXISTS schema_migrations (
   version INTEGER PRIMARY KEY,
   checksum TEXT NOT NULL,
   applied_at_ms INTEGER NOT NULL
@@ -157,7 +157,10 @@ Planned `server/db/migrate.js` creates the ledger if absent, acquires a single
 deployment migration lock, verifies applied checksums, and runs unapplied numbered
 SQL files in transactions. The initial SQL uses `CREATE TABLE IF NOT EXISTS` only
 for the bootstrap migration ledger; its occurrence above describes the final
-schema. Never silently edit an applied migration.
+schema. The runner's ledger bootstrap is infrastructure outside migration
+tracking; migration 001 (including its harmless ledger existence check) receives
+one checksum/ledger row, not a separate ledger-table migration. Never silently
+edit an applied migration.
 
 Run `npm run db:migrate` as a separate pre-start release task, not in every
 replica. Failed migrations abort readiness; back up before destructive changes.

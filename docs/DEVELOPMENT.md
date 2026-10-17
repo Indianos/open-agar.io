@@ -86,7 +86,7 @@ npm pkg set private=true --json
 npm pkg set 'engines.node=>=24'
 mkdir -p server/http server/net server/sim server/db server/tests \
   shared db/migrations db/data docs deploy
-npm create vite@9.2.1 client -- --template vanilla
+npm create --yes vite@9.2.1 client -- --template vanilla --no-interactive --no-immediate
 rm client/package.json
 mkdir -p client/src/input client/src/net client/src/render
 npm install --save-exact fastify@5.12.7 ws@8.22.0 argon2@0.45.1
@@ -94,6 +94,9 @@ npm install --save-dev --save-exact vite@8.3.4 eslint@10.13.0 \
   @eslint/js@10.0.1 prettier@3.9.10
 ```
 
+The [create-vite CLI flags](https://github.com/vitejs/vite/blob/create-vite%409.2.1/packages/create-vite/src/index.ts)
+disable prompts and automatic installation/startup; npm's `--yes` separately
+accepts downloading the initializer.
 `rm client/package.json` removes **only the fresh scaffold's manifest** so there
 is one root dependency graph/lockfile. Do not run it against an independently
 developed client project. Do not run `npm install` inside `client`. Keep the

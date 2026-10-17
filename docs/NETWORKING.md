@@ -39,6 +39,20 @@ last arbitrary message. Tick is a u32 simulation step counter; compare modulo
 measure differences only over intervals below 2^31 ms. Never compare client and
 server clock origins directly.
 
+Define these transport bounds in planned `shared/protocol.js` (sizes include the
+8-byte header). Encoders must assert them before sending; decoders must check them
+before allocating. Add boundary fixtures for each in `shared/protocol.test.js`.
+`ws.maxPayload` enforces the client limit on the server; the browser connection
+handler enforces the server limit on receipt.
+
+| Planned protocol constant | Value |
+| --- | --- |
+| `MAX_CLIENT_MESSAGE_BYTES` | 256 |
+| `MAX_SERVER_MESSAGE_BYTES` | 61,440 |
+| `MAX_SNAPSHOT_PART_ENTITIES` | 2,400 |
+| `MAX_SNAPSHOT_ENTITIES` | 6,000 |
+| `MAX_SNAPSHOT_PARTS` | 3 |
+
 | Opcode | Direction | Planned message | Payload size |
 | --- | --- | --- | --- |
 | `0x01` | C → S | HELLO | `5 + ticketBytes + resumeBytes` |
@@ -172,12 +186,18 @@ Status: Planned
 | ERROR | 2 | textBytes | u8 | 0..120 |
 | ERROR | 3 | text | bytes[textBytes] | UTF-8 diagnostic, no secrets |
 
-ERROR codes: 1 `BAD_MESSAGE`, 2 `AUTH_REQUIRED`, 3 `ARENA_BUSY`,
-4 `RESUME_EXPIRED`, 5 `RATE_LIMITED`, 6 `VERSION_UNSUPPORTED`.
-Fatal errors close afterwards: 1002 protocol/version, 1008 auth/policy,
-1009 oversize; 1012 service restart and 1013 temporary overload.
-Unexpected faults use 1011 without stack traces. Do not reuse reserved 1006
-as a transmitted close code.
+| ERROR code | Name | WebSocket close behavior |
+| --- | --- | --- |
+| 1 | `BAD_MESSAGE` | Send ERROR, then 1002 |
+| 2 | `AUTH_REQUIRED` | Send ERROR, then 1008 |
+| 3 | `ARENA_BUSY` | Send ERROR, then 1013; retry with a new ticket |
+| 4 | `RESUME_EXPIRED` | Send ERROR, then 1008; show respawn, do not auto-resume |
+| 5 | `RATE_LIMITED` | Sample ERROR at most once/s; drop excess INPUT; 1008 after 5 seconds of persistent excess |
+| 6 | `VERSION_UNSUPPORTED` | Send ERROR, then 1002 |
+
+Oversize messages close 1009 without requiring an application ERROR. Use 1012 for
+service restart and 1013 for other temporary overload. Unexpected faults use 1011
+without stack traces. Do not reuse reserved 1006 as a transmitted close code.
 
 ## Lifecycle, reconnect, and visibility
 
