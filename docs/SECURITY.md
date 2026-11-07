@@ -107,7 +107,7 @@ identifiers in metric labels.
 | Play tickets | 10/minute/IP, burst 5; 6/minute/session or guest, burst 3 |
 | WS upgrades | 10/minute/IP, burst 5; ≤20 active sockets/IP |
 | Pending HELLO | ≤5/IP, 5-second timeout, no arena slot yet |
-| Active player | One socket per live player; 64 arena lives including grace |
+| Active player | One socket per live player; preset maxPlayers (64 default), including grace |
 | INPUT/PING/SETTINGS | Per-message and byte limits in NETWORKING.md |
 | DB operations | Query timeouts, bounded worker queues, no arbitrary SQL API |
 | Password work | 2 concurrent/process, 20 queued; reject overflow |

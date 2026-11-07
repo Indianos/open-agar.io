@@ -480,7 +480,8 @@ player leaves the viewport. ACP still computes/sends its bounded viewport.
 | 25 | y | f32 | Same |
 | 29 | serverTick | u32 | Sampling tick |
 
-Unavailable clears follow; stale-generation samples are ignored. This is bounded
+Unavailable clears follow; samples for stale generations or a no-longer-selected
+player are ignored. This is bounded
 selected-target metadata, not an uncropped entity feed or gameplay command.
 
 Admin caps in `shared/admin-protocol.js`: inbound 4096 bytes, outbound 61440 bytes,

@@ -487,7 +487,9 @@ Open `http://localhost:5174/admin/`; production serves admin/dist under `/admin/
 on the separate admin origin. Shared Canvas imports must be browser-safe; separate
 connection stores/codecs prevent spectator delta state leaking into player code.
 Add `admin/dist/**` to root ESLint ignores and generated-output ignore files.
-Extend browser globals to admin files; add a JSX flat-config block using
+Extend the existing browser-global block's `files` to
+`['client/src/**/*.js', 'admin/src/**/*.{js,jsx}']`, covering plain admin connection/
+store modules as well as components. Add a separate JSX flat-config block using
 `files: ['admin/src/**/*.jsx']`, parserOptions `ecmaFeatures: {jsx: true}`.
 The existing core `no-unused-vars` rule cannot recognize JSX-only component uses:
 scope `varsIgnorePattern: '^[A-Z]'` to that block, retaining other checks and

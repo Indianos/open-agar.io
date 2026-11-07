@@ -255,12 +255,16 @@ process-management endpoint and no arbitrary upstream address is accepted.
 | --- | --- | --- |
 | Player Vite | 5173 | Development only |
 | ACP Vite | 5174; `/admin/` base | Development only |
-| Public game front door | 3000; `/api/v1`, `/ws/<serverId>`, player assets | `game.example.com:443` via Nginx |
+| Public game front door | 3000; `/api/v1`, `/ws/<arenaId>`, player assets | `game.example.com:443` via Nginx |
 | Control/admin | 3001; `/admin/`, `/admin/api/v1`, `/admin/ws` | `admin.example.com:443`, IP allowlist + admin auth |
 | Game children | Allocated 3100..3199, loopback in container | Never published |
 
 In managed mode, planned `control/router.js` routes public game requests/WS by
 validated registry IDs to private child ports. `/api/v1/play/tickets` routes to
+the requested `arenaId`, which is exactly the registry `serverId` at this public
+boundary (including bootstrap `local-1` and managed `arena-<number>` IDs).
+The existing player field/path names remain `arenaId`, not a second ID namespace.
+Requests go to
 the requested ready arena; shared account/history/static requests use the
 configured default ready arena. Missing default readiness returns 503, not an
 admin fallback. Control routing has no admin privileges on its public listener.
@@ -284,6 +288,8 @@ adding another backend stack:
 - Expose `3000 3001`; change CMD to `["node", "control/index.js"]`.
 - Keep `node:24` builder/runtime, non-root user, `--init`, graceful stop, and DB
   volume. Add `admin/node_modules` and `admin/dist` to `.dockerignore`.
+  The nested node_modules entry is defensive against accidental installs, not a
+  recommendation to create a second dependency graph.
 - Replace the single-host run's published ports with
   `-p 127.0.0.1:3000:3000 -p 127.0.0.1:3001:3001` and add
   `--cpus=2 --memory=2g --pids-limit=128`. These cap the **entire container**,

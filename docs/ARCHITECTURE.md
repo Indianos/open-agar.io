@@ -9,6 +9,8 @@ Status: Planned
 All nodes below are planned. Start with one Node.js process for HTTP/WebSockets
 and one simulation worker; retain the same message boundary if temporarily
 running the simulation in-process during the first prototype.
+The diagram shows the managed ACP target: DB work passes through control-owned
+IPC. Before ACP, the standalone game owns the same DB worker directly.
 
 ```mermaid
 flowchart LR
@@ -16,22 +18,23 @@ flowchart LR
   I --> C[Vanilla JS client / Canvas]
   C -->|HTTPS: accounts, tickets, results| N[Nginx TLS]
   C -->|WSS: intent and snapshots| N
-  N --> H[Node.js 24 / Fastify HTTP]
-  N --> W[Node.js 24 / ws gateway]
-  H --> D[DB repository / SQLite worker]
+  N --> RT[Public registry router / control port 3000]
+  RT --> H[Node.js 24 / Fastify HTTP]
+  RT --> W[Node.js 24 / ws gateway]
+  H -->|repository RPC over private IPC| CT[Node.js 24 control server]
   W -->|bounded intent queue| S[Authoritative arena worker]
   S -->|immutable snapshots| W
-  S -->|final results| D
+  S -->|final result jobs via game process IPC| CT
   D --> Q[(SQLite prototype / Postgres later)]
   H -. later shared tickets and quotas .-> R[(Optional Redis)]
   W -. later shared routing .-> R
   A[React ACP / plain Canvas] -->|admin HTTPS and separate WSS| AN[Admin Nginx TLS / IP allowlist]
-  AN --> CT[Node.js 24 control server]
+  AN --> CT
   CT --> PM[Process manager]
   PM -->|fork lifecycle / health IPC| H
   CT -->|authorized commands / viewport subscriptions IPC| W
   W -->|scoped spectator changes / command results IPC| CT
-  CT --> D
+  CT --> D[DB repository / SQLite worker]
 ```
 
 | Planned path/component | Responsibility | Must not do |

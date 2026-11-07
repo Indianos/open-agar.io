@@ -49,7 +49,9 @@ There is no player-account-to-admin promotion or public admin registration.
 
 Commands target `(serverId, generation, playerId)`, never a render aggregate ID.
 Registered user UUID is resolved by the control server for bans/stats; guest bans
-are an open decision. Follow is local camera state, not a destructive IPC command.
+are an open decision, with API rejection as the safe interim proposal rather than
+an invented guest/IP identity policy. Follow is local camera state, not a
+destructive IPC command.
 Mute records intended moderation state but cannot suppress nonexistent chat:
 its communication scope must be decided before that feature is marked Done.
 Admin notices require the separate player notification extension described in

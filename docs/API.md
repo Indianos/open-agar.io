@@ -352,7 +352,7 @@ Player action request:
 | Action | Required args besides `reason` | Permission |
 | --- | --- | --- |
 | `kick` | none | moderator/operator |
-| `ban` | `expiresAt`: RFC3339 future UTC or null; resolve live account or reject guest | moderator/operator |
+| `ban` | `expiresAt`: RFC3339 future UTC or null; initial safe proposal resolves live account and rejects guest pending policy approval | moderator/operator |
 | `mute` | `enabled`: boolean; live-only state | moderator/operator |
 | `rename` | `displayName`: existing name constraints | moderator/operator |
 | `kill` | none | operator |
