@@ -264,9 +264,9 @@ validated registry IDs to private child ports. `/api/v1/play/tickets` routes to
 the requested `arenaId`, which is exactly the registry `serverId` at this public
 boundary (including bootstrap `local-1` and managed `arena-<number>` IDs).
 The existing player field/path names remain `arenaId`, not a second ID namespace.
-Requests go to
-the requested ready arena; shared account/history/static requests use the
-configured default ready arena. Missing default readiness returns 503, not an
+Play-ticket requests route to that `arenaId`'s ready server; shared account/history/
+static requests use the configured default ready arena instead.
+Missing default readiness returns 503, not an
 admin fallback. Control routing has no admin privileges on its public listener.
 Bootstrap `local-1` from the default config to retain the existing quick start;
 additional IDs are manager-assigned. Publish a route only after READY, withdraw
