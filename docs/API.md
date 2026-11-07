@@ -176,7 +176,8 @@ Detail returns:
   "durationTicks": 5400,
   "peakMass": 942.25,
   "cellsEaten": 7,
-  "endReason": "eaten"
+  "endReason": "eaten",
+  "ranked": true
 }
 ```
 
@@ -185,6 +186,8 @@ There is **no public POST result endpoint**. Only the simulation writes results.
 visible after the DB worker commits; LIFE_ENDED may precede an HTTP read.
 Guest results are persisted for aggregate operations but not publicly retrievable
 or retroactively attached to accounts. Aborted/crashed lives have no ranked result.
+With ACP, `ranked` is false for custom preset arenas or lives affected by the
+interventions in ADMIN.md; leaderboard writes exclude them.
 
 ## Cache, health, and request examples
 
@@ -218,3 +221,173 @@ curl -b /tmp/agar-cookies \
 
 Remove the temporary cookie file afterwards. Rate limits and authentication
 failure policy are specified in [SECURITY.md](SECURITY.md).
+
+## Admin REST API
+
+Status: Planned
+
+Separate origin/control listener, base `/admin/api/v1`; paths in the tables below
+are relative to that base. Same JSON/error envelope, 16 KiB body cap, full schemas,
+Origin/CSRF rules as above, but **separate admin session and permission checks**.
+All responses `Cache-Control: no-store`; role matrix and quotas are in
+[SECURITY.md](SECURITY.md#admin-access-and-permissions). Never expose these paths
+through a player server or silently fall back to ACP HTML.
+
+| Planned method/path | Required role | Success / request |
+| --- | --- | --- |
+| `POST /auth/login` | IP allowlisted, unauthenticated | 200; `{"email":"operator@example.com","password":"example-only-not-a-real-password"}` |
+| `GET /auth/me` | Any admin | 200; admin identity/role and rotated CSRF token |
+| `POST /auth/logout` | Any admin + CSRF | 204; `{}`, revoke session/tickets/WS |
+| `POST /auth/ws-tickets` | Any admin + CSRF | 201; `{}`, one-use session-bound spectator ticket |
+| `GET /servers` | Any admin | 200; registered servers and metrics |
+| `GET /servers/:serverId` | Any admin | 200; server detail/config/revision |
+| `POST /servers` | operator | 202; create from preset, idempotent command |
+| `POST /servers/:serverId/stop` | operator | 202; commandId, generation, reason |
+| `POST /servers/:serverId/restart` | operator | 202; commandId, generation, reason; optional presetId/presetVersion pair |
+| `PATCH /servers/:serverId/config` | operator | 202; commandId, generation, expectedRevision, changes, reason |
+| `GET /presets` | Any admin | 200; newest version of each preset |
+| `GET /presets/:presetId?version=1` | Any admin | 200; exact version (latest if omitted) |
+| `POST /presets` | operator | 201; name, variables, reason |
+| `PUT /presets/:presetId` | operator | 201; expectedVersion, name, variables, reason; append new immutable version |
+| `GET /users?q=Blue&limit=20&cursor=...` | moderator/operator | 200; registered user search |
+| `GET /users/:userId` | moderator/operator | 200; stats and active player targets |
+| `POST /servers/:serverId/players/:playerId/actions` | moderator/operator, action-specific | 202; same command fields as admin WS |
+| `POST /bans` | moderator/operator | 201; userId, expiresAt or null, reason, commandId |
+| `GET /bans?userId=...&active=true` | moderator/operator | 200; paginated bans |
+| `DELETE /bans/:banId` | moderator/operator | 200; reason, commandId; revoke record, not erase history |
+| `GET /audit-log?actorId=...&serverId=...&status=...` | operator | 200; paginated sanitized audit entries |
+| `GET /commands/:commandId` | Issuing admin or operator | 200; pending/applied/rejected/unknown |
+
+All list endpoints return `{"items":[],"nextCursor":null}`; `limit` 1..100,
+default 20, cursor ≤256 bytes. Servers sort by server ID, presets by ID, users by
+UUID after normalized display-name substring search (`q` 1..64 code points;
+escape LIKE wildcards and bind params). Audit/bans sort by `(createdAt,id) DESC`.
+Email lookup is an exact normalized query, not exposed in the public player API.
+No admin registration/role-edit/delete-user endpoints are introduced.
+
+Admin login/me response:
+
+```json
+{
+  "admin": {"id":"513b6c9e-a7f9-447c-8adb-82dd15676ec4","role":"operator"},
+  "csrfToken":"<runtime-generated-admin-csrf-token>"
+}
+```
+
+Login sets `__Host-agar_admin` (Secure, HttpOnly, SameSite=Strict, Path=/, no Domain)
+on the admin origin, never the player cookie. WS ticket response:
+
+```json
+{"ticket":"<43-character-base64url-secret>","expiresInSeconds":30,"wsPath":"/admin/ws","subprotocol":"agar.admin.v1"}
+```
+
+Preset create example (variables validated by the owning
+[ADMIN.md table](ADMIN.md#create-server-variables)):
+
+```json
+{
+  "name":"Default",
+  "variables":{"worldSize":12000,"foodTarget":2000,"foodRefillRate":100,"maxPlayers":64,"baseSpeed":220,"tickHz":30},
+  "reason":"Initial arena preset"
+}
+```
+
+201 response includes `id`, `version: 1`, `name`, identical `variables`, and
+`createdAt`. PUT includes `expectedVersion` and creates version+1 without changing
+running servers. Launch request:
+
+```json
+{
+  "commandId":"981ecba1-901f-4ac1-9ea4-e6fb18753865",
+  "presetId":"8e43fe4a-1dd6-4f90-aa51-b0619531df73",
+  "presetVersion":1,
+  "reason":"Start a second arena"
+}
+```
+
+202 response:
+
+```json
+{"commandId":"981ecba1-901f-4ac1-9ea4-e6fb18753865","status":"pending","serverId":"arena-2"}
+```
+
+Server detail example:
+
+```json
+{
+  "serverId":"arena-2","generation":"4105e936-83db-44cc-b2fa-66bb7bbab8d1",
+  "status":"running","presetId":"8e43fe4a-1dd6-4f90-aa51-b0619531df73",
+  "presetVersion":1,"configRevision":1,
+  "config":{"worldSize":12000,"foodTarget":2000,"foodRefillRate":100,"maxPlayers":64,"baseSpeed":220,"tickHz":30},
+  "metrics":{"playerCount":12,"tickP95Ms":4.2,"cpuPercent":23.5,"rssBytes":134217728,"sampledAt":"2026-11-07T12:00:00.000Z"}
+}
+```
+
+Unknown/stopped metrics are null, never fabricated zero usage. Stats response:
+
+```json
+{
+  "user":{"id":"10bd7ea3-c691-48a4-8e87-a81596060774","displayName":"BlueCell"},
+  "stats":{"retainedMatches":12,"bestRankedMass":942.25,"retainedDurationTicks":54000},
+  "activePlayers":[{"serverId":"arena-2","generation":"4105e936-83db-44cc-b2fa-66bb7bbab8d1","playerId":42,"muted":false}]
+}
+```
+
+Stats use persisted retained results/leaderboard plus current registry; do not
+label retention-limited totals “lifetime.” Kick/mute of an account with several
+connections targets each selected live tuple explicitly. Ban is account-wide.
+
+Player action request:
+
+```json
+{
+  "commandId":"be9f89a2-c077-4e99-a481-7573757ea07c",
+  "generation":"4105e936-83db-44cc-b2fa-66bb7bbab8d1",
+  "action":"set_mass",
+  "args":{"totalMass":100,"reason":"Test a collision boundary"}
+}
+```
+
+| Action | Required args besides `reason` | Permission |
+| --- | --- | --- |
+| `kick` | none | moderator/operator |
+| `ban` | `expiresAt`: RFC3339 future UTC or null; resolve live account or reject guest | moderator/operator |
+| `mute` | `enabled`: boolean; live-only state | moderator/operator |
+| `rename` | `displayName`: existing name constraints | moderator/operator |
+| `kill` | none | operator |
+| `set_mass` | `totalMass`: finite bounded number per ADMIN.md | operator |
+| `message` | `text`: ≤200 code points/512 UTF-8 bytes | moderator/operator |
+
+All mutation reasons: 1..200 trimmed code points, ≤512 UTF-8 bytes, no controls.
+Stop/restart uses generation; restart without preset fields reuses the original
+copied preset config. PATCH changes only the live whitelist and marks affected
+lives unranked. Ban commit returns 201 with ban ID and command status; enforcement
+may still be pending on active processes. A failed kick does not revoke the ban.
+Ban checks occur at join/resume and across live sessions; expired/revoked bans
+permit new joins but never restore a kicked body.
+
+Audit entry example:
+
+```json
+{"id":"be9f89a2-c077-4e99-a481-7573757ea07c","actorId":"513b6c9e-a7f9-447c-8adb-82dd15676ec4","action":"set_mass","serverId":"arena-2","target":"player:42","status":"applied","reason":"Test a collision boundary","appliedTick":120,"createdAt":"2026-11-07T12:00:00.000Z"}
+```
+
+Idempotency: command UUID scoped globally, bound to authenticated actor/action/
+target/normalized args; same key and payload returns original status. Another
+actor or altered payload cannot reuse it. Mutation requests audit pending before
+dispatch; persistent command status supports polling after a socket closes.
+Preset mutations are synchronous transactions and audited; launch waits for the
+saved preset and host admission limits, not user-supplied executables/ports.
+
+Additional admin errors in the same envelope:
+
+| HTTP | Planned code | Meaning |
+| --- | --- | --- |
+| 403 | `ADMIN_FORBIDDEN`, `ADMIN_IP_DENIED` | Wrong role or network |
+| 404 | `SERVER_NOT_FOUND`, `PLAYER_NOT_FOUND`, `PRESET_NOT_FOUND` | Missing registered target |
+| 409 | `STALE_GENERATION`, `PRESET_VERSION_CONFLICT`, `CONFIG_REVISION_CONFLICT`, `COMMAND_CONFLICT`, `INVALID_SERVER_STATE` | Stale/conflicting mutation |
+| 400 | `PRESET_INVALID`, `ACTION_INVALID`, `GUEST_BAN_UNSUPPORTED` | Unsupported variables/action target |
+| 503 | `RESOURCE_LIMIT`, `AUDIT_UNAVAILABLE`, `IPC_UNAVAILABLE` | Admission/audit/dispatch cannot proceed |
+
+Timeout after dispatch is command status `unknown`, **not** a retryable “failed”
+mutation. Poll/reconcile before any new attempt.

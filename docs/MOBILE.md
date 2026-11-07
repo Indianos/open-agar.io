@@ -11,6 +11,10 @@ device-independent intent, server authority, world-unit geometry, and snapshot
 buffers from day one; do not ship a separate mobile simulation or backend.
 See [ARCHITECTURE.md](ARCHITECTURE.md) and
 [NETWORKING.md](NETWORKING.md) for those contracts.
+These are the **player** contracts. ACP React pages and whole-map spectator
+controls are separate desktop administration features; mobile ACP support is not
+added by this phase. Client timers use negotiated preset `tickHz`, not hardcoded
+30 Hz; low-bandwidth player send rates remain unchanged.
 
 ## Touch controls and responsive layout
 

@@ -29,6 +29,42 @@ erDiagram
   USERS ||--o{ SESSIONS : owns
   USERS o|--o{ MATCH_RESULTS : optionally_owns
   USERS ||--o| LEADERBOARD_BEST : has
+  ADMINS ||--o{ ADMIN_SESSIONS : owns
+  ADMINS o|--o{ AUDIT_LOG : performs
+  ADMINS o|--o{ SERVER_PRESETS : creates
+  ADMINS o|--o{ BANS : issues
+  USERS ||--o{ BANS : receives
+  ADMINS {
+    text id PK
+    text email_canonical UK
+    text role
+    text password_hash
+  }
+  ADMIN_SESSIONS {
+    text id PK
+    text admin_id FK
+    text token_hash UK
+    integer expires_at_ms
+  }
+  AUDIT_LOG {
+    text id PK
+    text actor_id FK
+    text action
+    text status
+  }
+  SERVER_PRESETS {
+    text id PK
+    integer version PK
+    text variables_json
+    text created_by FK
+  }
+  BANS {
+    text id PK
+    text user_id FK
+    text created_by FK
+    integer expires_at_ms
+    integer revoked_at_ms
+  }
   USERS {
     text id PK
     text email_canonical UK
@@ -130,7 +166,7 @@ Generate the result UUID once when the life starts. At finalization, the worker
 emits the same ID on every retry. In one transaction:
 
 1. Insert result with `ON CONFLICT(id) DO NOTHING`.
-2. Only if inserted and `user_id` is non-null, upsert `leaderboard_best` using
+2. Only if inserted, `is_ranked = 1`, and `user_id` is non-null, upsert `leaderboard_best` using
    `max(existing best_mass, incoming peak_mass)`; update timestamp only on improvement.
 3. Commit, then acknowledge the outbox job.
 
@@ -184,3 +220,117 @@ after seven days and account match detail after 90 days. Preserve leaderboard
 summary until account deletion. Account deletion is not an initial API endpoint;
 an operator procedure must revoke sessions, delete the user/summary, and unlink
 retained results before accounts launch. Never back up raw session/ticket secrets.
+
+## Admin schema and auditing
+
+Status: Planned
+
+Add planned `db/migrations/002_admin.sql` rather than rewriting an applied 001.
+In managed ACP mode, the control server owns the DB worker; game repository
+operations pass through validated IPC. Admin identities are separate from users,
+including separate session rows. No extra SQLite writer per child.
+
+```sql
+CREATE TABLE admins (
+  id TEXT PRIMARY KEY NOT NULL,
+  email_canonical TEXT NOT NULL UNIQUE CHECK(length(email_canonical) <= 254),
+  password_hash TEXT NOT NULL,
+  role TEXT NOT NULL CHECK(role IN ('viewer', 'moderator', 'operator')),
+  disabled INTEGER NOT NULL DEFAULT 0 CHECK(disabled IN (0, 1)),
+  created_at_ms INTEGER NOT NULL
+) STRICT;
+
+CREATE TABLE admin_sessions (
+  id TEXT PRIMARY KEY NOT NULL,
+  admin_id TEXT NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE CHECK(length(token_hash) = 64),
+  csrf_hash TEXT NOT NULL CHECK(length(csrf_hash) = 64),
+  created_at_ms INTEGER NOT NULL,
+  expires_at_ms INTEGER NOT NULL CHECK(expires_at_ms > created_at_ms)
+) STRICT;
+
+CREATE TABLE audit_log (
+  id TEXT PRIMARY KEY NOT NULL,
+  actor_id TEXT REFERENCES admins(id) ON DELETE SET NULL,
+  action TEXT NOT NULL,
+  server_id TEXT,
+  generation TEXT,
+  target TEXT,
+  reason TEXT NOT NULL CHECK(length(reason) BETWEEN 1 AND 200),
+  request_fingerprint TEXT,
+  details_json TEXT NOT NULL CHECK(json_valid(details_json)),
+  status TEXT NOT NULL CHECK(status IN ('pending', 'applied', 'rejected', 'unknown')),
+  applied_tick INTEGER CHECK(applied_tick >= 0),
+  created_at_ms INTEGER NOT NULL,
+  completed_at_ms INTEGER CHECK(completed_at_ms >= created_at_ms)
+) STRICT;
+
+CREATE TABLE server_presets (
+  id TEXT NOT NULL,
+  version INTEGER NOT NULL CHECK(version >= 1),
+  name TEXT NOT NULL CHECK(length(name) BETWEEN 1 AND 64),
+  variables_json TEXT NOT NULL CHECK(json_valid(variables_json)),
+  created_by TEXT REFERENCES admins(id) ON DELETE SET NULL,
+  created_at_ms INTEGER NOT NULL,
+  PRIMARY KEY (id, version)
+) STRICT;
+
+CREATE TABLE bans (
+  id TEXT PRIMARY KEY NOT NULL,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_by TEXT REFERENCES admins(id) ON DELETE SET NULL,
+  reason TEXT NOT NULL CHECK(length(reason) BETWEEN 1 AND 200),
+  created_at_ms INTEGER NOT NULL,
+  expires_at_ms INTEGER CHECK(expires_at_ms > created_at_ms),
+  revoked_at_ms INTEGER CHECK(revoked_at_ms >= created_at_ms)
+) STRICT;
+
+ALTER TABLE match_results
+  ADD COLUMN is_ranked INTEGER NOT NULL DEFAULT 1 CHECK(is_ranked IN (0, 1));
+
+CREATE INDEX admin_sessions_expiry ON admin_sessions(expires_at_ms);
+CREATE INDEX admin_sessions_owner ON admin_sessions(admin_id);
+CREATE INDEX audit_recent ON audit_log(created_at_ms DESC, id DESC);
+CREATE INDEX audit_actor_recent ON audit_log(actor_id, created_at_ms DESC, id DESC);
+CREATE INDEX audit_server_recent ON audit_log(server_id, created_at_ms DESC, id DESC);
+CREATE INDEX bans_user_active ON bans(user_id, revoked_at_ms, expires_at_ms);
+CREATE INDEX presets_latest ON server_presets(id, version DESC);
+```
+
+`variables_json` contains only the six game-variable fields from
+[ADMIN.md](ADMIN.md#create-server-variables), not name, paths, secrets or resource
+budgets. Validate full schema and cross-field bounds in Node as well as valid JSON
+in SQL. Updating a preset appends version+1 in a transaction, requiring expected
+latest version; old versions remain available for launch/restart.
+Registry/PIDs/ports/live mute flags remain runtime state, not preset contents.
+Control restart must terminate its children and clear registry state, not
+silently rediscover unrelated host processes.
+
+Audit row ID is command UUID for dispatched mutations; generate a fresh UUID for
+login/denial, preset-save, and spectator-session start/end audit events. Keep
+actor/action/target/reason/creation immutable; only status/outcome fields finalize
+a pending row. `request_fingerprint` is SHA-256 of canonical validated intent,
+bound to actor ID; no raw auth token, password, message text, or sensitive body
+in `details_json`. Store approved variable values, changed fields, outcomes and
+timestamps; account-ban target is UUID, not email. Login failures have null actor
+unless independently authenticated; never trust a claimed login actor ID.
+
+Pending audit insert must commit before IPC dispatch; reject mutations if audit
+storage is unavailable. Ban row and pending audit insert share one transaction;
+enforce on all current bodies, plus authoritative join/resume checks so new joins
+cannot race an in-flight kick. Audit uncertain IPC outcomes as unknown; do not
+change them to applied without an acknowledgment or explicit reconciliation.
+Repeated command IDs return recorded status only after checking actor/fingerprint.
+
+Custom presets (any gameplay override differs from defaults) are unranked pending
+a comparable-leaderboard decision. Mark all affected existing lives unranked on
+live gameplay change, and persist that flag with final results; server config
+state determines new-life eligibility too. Do not retroactively rewrite previously
+committed ranked results. The existing leaderboard remains default-rules-only.
+
+Admin session lifetime and token rules are in SECURITY.md. Expired-session cleanup
+extends to admin_sessions. Audit retention is an open operator policy; do not
+silently apply the player 90-day result purge to audits/presets/bans. No audit
+delete endpoint is proposed; revoking a ban preserves its row and audit history.
+Postgres maps JSON text to JSONB (or validated TEXT initially), integer flags to
+BOOLEAN, and keeps the same public JSON contracts.

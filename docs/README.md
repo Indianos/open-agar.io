@@ -28,10 +28,12 @@ infrastructure, not alternative application backends.
 | Accounts | Optional registration, cookie sessions, personal match history |
 | Competition | Public all-time leaderboard based on server-recorded peak mass |
 | Operations | One region first, observable tick budget, graceful deployments |
+| Admin Control Panel | Separate React ACP; presets/process lifecycle, user moderation, audited spectator actions |
 | Mobile | **Phase 6**, touch controls and optional PWA; no initial mobile promise |
 
-No chat, paid items, teams, trading, cross-arena migration, or offline simulation
+No player-to-player chat, paid items, teams, trading, cross-arena migration, or offline simulation
 is in the initial scope.
+Admin notices are not chat; mute semantics remain an [ACP open decision](ADMIN.md#open-acp-decisions).
 
 ## Proposed stack and platforms
 
@@ -40,10 +42,12 @@ Status: Planned
 | Layer | Proposed choice | Reason |
 | --- | --- | --- |
 | Runtime | Node.js 24 LTS; `engines.node: ">=24"` | One runtime, native ESM, test runner, workers |
-| Simulation/transport | Plain JavaScript + `ws` 8 | Fixed 30 Hz authoritative simulation |
+| Simulation/transport | Plain JavaScript + `ws` 8 | Fixed preset tick rate, 30 Hz default |
 | HTTP/API | Fastify 5 | JSON Schema validation and structured logging |
 | Persistence | `node:sqlite` initially; `pg` 8/Postgres later | Low setup cost, explicit migration boundary |
-| Browser | Vanilla JS, HTML5 Canvas, Vite 8 | No UI framework; input adapters isolate devices |
+| Player browser | Vanilla JS, HTML5 Canvas, Vite 8 | Input adapters isolate devices |
+| ACP browser | React + Vite; shared imperative Canvas | Forms/menus in React, viewport deltas and LOD for live map |
+| Control backend | Node.js control API/process manager, private IPC | Separate admin auth; spawns managed game processes |
 | Auth | `argon2` package + opaque cookie sessions | Password hashing and revocable sessions |
 | Optional scale | Redis | Shared quotas/tickets/presence, not simulation authority |
 
@@ -53,6 +57,9 @@ targets. Touch emulation alone will not qualify mobile support.
 
 Exact proposed package versions, official sources, Node.js 24 caveats, setup
 commands, and the folder tree live in [DEVELOPMENT.md](DEVELOPMENT.md).
+Planned top-level structure is `/server`, `/client`, `/shared`, `/db`, `/docs`,
+plus `/admin` for the ACP and `/control` for its backend. Player and admin
+protocols/authentication stay separate; see [ADMIN.md](ADMIN.md).
 
 ## Planned quick start
 
@@ -104,6 +111,7 @@ Status: Planned
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Scaffolding, versions, scripts, testing |
 | [MOBILE.md](MOBILE.md) | Later touch, responsive layout, power/network behavior |
 | [ROADMAP.md](ROADMAP.md) | Phases, acceptance gates, first-week tasks |
+| [ADMIN.md](ADMIN.md) | ACP pages, roles, create-server variables and spectator UI |
 
 ## Maintaining the blueprint
 
@@ -129,3 +137,4 @@ Status: Planned
    become public beyond the leaderboard.
 6. Approve gameplay values and bandwidth targets through playtests, not by
    treating proposed numbers as measured capacity.
+7. ACP-specific open decisions are owned by [ADMIN.md](ADMIN.md#open-acp-decisions).

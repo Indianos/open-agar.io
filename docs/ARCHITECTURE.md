@@ -25,6 +25,13 @@ flowchart LR
   D --> Q[(SQLite prototype / Postgres later)]
   H -. later shared tickets and quotas .-> R[(Optional Redis)]
   W -. later shared routing .-> R
+  A[React ACP / plain Canvas] -->|admin HTTPS and separate WSS| AN[Admin Nginx TLS / IP allowlist]
+  AN --> CT[Node.js 24 control server]
+  CT --> PM[Process manager]
+  PM -->|fork lifecycle / health IPC| H
+  CT -->|authorized commands / viewport subscriptions IPC| W
+  W -->|scoped spectator changes / command results IPC| CT
+  CT --> D
 ```
 
 | Planned path/component | Responsibility | Must not do |
@@ -41,6 +48,12 @@ flowchart LR
 | `client/src/render/` | Camera, Canvas, interpolation, HUD | Advance authoritative gameplay |
 | `shared/constants.js`, `shared/protocol.js` | Pure constants, codecs, schema version | Import Node-only APIs in browser code |
 | `db/migrations/` | Ordered immutable schema changes | Store live arena positions |
+| `control/index.js`, `control/http/routes.js` | Admin API, auth, audit, static ACP | Accept player sessions as admin credentials |
+| `control/process-manager.js`, `control/ipc.js` | Fork lifecycle, health, validated IPC | Execute shell commands supplied by admin forms |
+| `control/net/spectator.js` | Separate admin WS, viewport subscriptions/deltas | Reuse player opcodes or authorize in the browser |
+| `admin/src/` | React pages/forms plus imperative Canvas wrapper | Render every entity through React |
+| `shared/admin-protocol.js`, `shared/server-config.js` | Separate admin codecs; validated preset schema | Embed credentials or server-only dependencies |
+| `shared/render/canvas.js` | Renderer shared by player and spectator adapters | Own input, authorization, or simulation |
 
 ## Data flow and authority
 
@@ -66,7 +79,8 @@ reduces information leakage, but is not a complete wallhack prevention system.
 
 Status: Planned
 
-Use monotonic `performance.now()` with `dt = 1 / 30` seconds. A timer wakes the
+Use monotonic `performance.now()` with `dt = 1 / tickHz` seconds (preset default
+30 Hz; allowed rates in [ADMIN.md](ADMIN.md#create-server-variables)). A timer wakes the
 loop; an accumulator, not timer accuracy, determines elapsed simulation steps.
 Use a seeded arena PRNG and injected clock in tests.
 
@@ -91,8 +105,10 @@ than allowing unbounded catch-up. Alert and stop admissions; never increase `dt`
 or let clients compensate by moving faster. Resolve competing eaters by greatest
 mass, then smallest entity ID; process deferred removals once per tick.
 
-Normal snapshots are 15 Hz (every two ticks); low-bandwidth snapshots are 5 Hz
-(every six). Rendering is independently driven by `requestAnimationFrame`.
+Normal player snapshots are 15 Hz; low-bandwidth snapshots are 5 Hz. With allowed
+15/30/60 Hz ticks, send every `tickHz / sendHz` ticks. Tick deadlines and load
+gates must scale to the chosen rate, not assume 30 Hz globally.
+Rendering is independently driven by `requestAnimationFrame`.
 See [NETWORKING.md](NETWORKING.md) for rates and wire representation.
 
 ## Input abstraction and responsive rendering
@@ -123,12 +139,62 @@ Status: Planned
 | ADR-001 | Node.js 24 ESM throughout | Shared JS mental model; built-in tests, no transpilation backend |
 | ADR-002 | `ws` + native browser WebSocket | Simple upgrade control; benchmark before adopting native uWebSockets.js |
 | ADR-003 | Fastify 5 | Schema validation/logging; Express remains an alternative, not a second server |
-| ADR-004 | One owner per arena, fixed 30 Hz | Avoid races and client authority; horizontal scale adds arenas |
+| ADR-004 | One owner per arena, fixed tick rate from preset (30 Hz default) | Avoid races and client authority; changes to tick rate require restart |
 | ADR-005 | Worker boundaries, no shared mutable state | Isolate SQL/physics latency; bounded message-copy overhead |
-| ADR-006 | Full culled binary snapshots v1 | Easy resync on mobile; deltas postponed until bandwidth measurements |
+| ADR-006 | Full culled player snapshots v1 | Easy player/mobile resync; separate admin feed uses viewport deltas/LOD |
 | ADR-007 | SQLite repository then Postgres | Prototype simplicity; SQLite synchronous work isolated in DB worker |
 | ADR-008 | Opaque cookie sessions | Immediate revocation; no JWT refresh-token complexity |
 | ADR-009 | Desktop first, input adapters now | Touch/network policies later without rewriting mechanics or rendering |
+| ADR-010 | React/Vite for ACP, imperative shared Canvas | Decided UI stack; React owns controls, not high-frequency entity rendering |
+| ADR-011 | Separate control server and child game processes | Role/audit boundary and lifecycle isolation; workers remain an alternative, not hard CPU/RAM isolation |
+
+## Control server and IPC
+
+Status: Planned
+
+The initial standalone prototype remains valid. When ACP is added, the control
+server becomes the sole owner of the shared SQLite DB worker: game processes use
+validated repository RPC over private parent/child IPC for accounts/results,
+never open competing local databases. A game still owns public HTTP/WS and its
+simulation worker. Spectator subscriptions are computed inside each game from
+spatial indexes; only viewport changes/LOD records cross IPC, not periodic whole
+world dumps. Postgres later can replace this repository boundary.
+
+`control/process-manager.js` uses `child_process.fork()` with a fixed absolute
+entry point, `shell: false` semantics, sanitized environment, IPC, and an immutable
+validated config. No form field controls an executable, argv, bind address, or
+filesystem path. A registry holds server ID, generation UUID, preset ID/version,
+config revision, PID/private port, metrics timestamp, and state:
+`starting → running → stopping → stopped`, or `failed`. Publish routing only after
+READY. Restart waits for old process exit, allocates a new generation, and
+invalidates old commands, subscriptions, tickets, and resume tokens.
+
+| Planned IPC type | Direction | Required content |
+| --- | --- | --- |
+| `INIT` / `READY` | Control → game / game → control | serverId, generation, config, revision / actual bound port |
+| `HEALTH` | Game → control every 1 s | generation, live/grace player count, tick p95, CPU interval, RSS |
+| `COMMAND` / `RESULT` | Control → game / game → control | command UUID, generation, actor ID, allowlisted action/target/args / outcome, applied tick |
+| `SUBSCRIBE` / `VIEWPORT` / `UNSUBSCRIBE` | Control → game | subscription ID, authorized viewport/zoom and view sequence |
+| `SPECTATOR_BATCH` | Game → control | subscription, generation, revision/base, scoped records |
+| `DB_REQUEST` / `DB_RESULT` | Game ↔ control | bounded repository operation, request UUID, validated args/result |
+| `STOP` | Control → game | command UUID, generation, graceful shutdown deadline |
+
+Validate both directions, ≤1 MiB IPC payload, ≤100 queued control messages per
+game; spectator batches use the smaller wire limits in NETWORKING.md.
+`send()` success is transport enqueue, not action success. Mutations execute at
+the next tick and acknowledge after application. Deduplicate command UUIDs for
+the process lifetime; the control server stores durable command status in audit
+rows and never blindly retries an uncertain mutation. HELLO/health fails after
+10/5 seconds respectively; mark unhealthy/failed, withdraw routing and require
+explicit restart (no invented automatic-restart policy). CPU/RSS come from the
+game process and must include worker-thread scope as explained in DEPLOYMENT.md.
+
+Persist an audit “pending” record before dispatch. Ban persistence and its audit
+intent commit atomically before IPC kicks; failed delivery does not lift the ban.
+Missing acknowledgment after 5 seconds is `unknown`, not success/failure; expose
+that result to the ACP for operator reconciliation. Stop allows the existing
+30-second flush deadline, then force-terminates the child after 40 seconds.
+Live config updates use expected revision and only the ADMIN.md whitelist.
 
 ## Failure isolation
 

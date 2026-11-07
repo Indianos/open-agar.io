@@ -11,6 +11,10 @@ when no cells remain. Score is peak total owned mass during that life, not a val
 supplied by the browser. One life produces one
 [match result](DATABASE.md), even though the arena continues running.
 Respawn requires a new ticket/life, never silently resurrects a result.
+Planned ACP mass/kill/kick/ban and live gameplay changes invalidate ranking for
+affected lives; [ADMIN.md](ADMIN.md#roles-and-player-actions) owns intervention
+semantics. Preset differences also require a leaderboard-comparability decision
+before custom arenas publish ranked results.
 
 World coordinates and radii use world units (WU); speed uses WU/second and mass
 uses abstract mass units. Mass is floating point in simulation. Radius is always
@@ -20,8 +24,11 @@ derived: `radius(m) = RADIUS_SCALE * sqrt(m)`. No separate mutable radius exists
 
 Status: Planned
 
-All gameplay tuning belongs in planned `shared/constants.js`; these values are
-unmeasured starting points. Network/security/operational limits belong to their
+Planned `shared/constants.js` owns these unmeasured defaults. A managed server
+copies validated preset overrides through `shared/server-config.js`; the exposed
+fields, ranges, and live-versus-restart rules belong to
+[ADMIN.md](ADMIN.md#create-server-variables). Mechanics read instance config,
+never a mutable shared global. Network/security/operational limits belong to their
 own documents, not this table.
 
 | Constant | Proposed value | Meaning |
