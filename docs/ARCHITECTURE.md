@@ -35,6 +35,11 @@ flowchart LR
   CT -->|authorized commands / viewport subscriptions IPC| W
   W -->|scoped spectator changes / command results IPC| CT
   CT --> D[DB repository / SQLite worker]
+  subgraph CP["Control process - separate public and admin listeners"]
+    RT
+    CT
+    PM
+  end
 ```
 
 | Planned path/component | Responsibility | Must not do |

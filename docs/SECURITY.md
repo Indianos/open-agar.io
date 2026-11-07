@@ -237,6 +237,7 @@ permission regardless of UI confirmation.
 | WS tickets | 6/min/admin, burst 2 |
 | Spectator sessions | Two/admin, one server subscription/socket |
 | Viewport updates | 10/s/socket, burst 5; coalesce newest |
+| Follow selection | 2/s/socket, burst 2; one selected target |
 | WS player commands | Same 30/min/admin mutation bucket as REST; never separate allowances |
 | IPC | ≤100 queued control messages/game, ≤1 MiB each; smaller spectator batch caps |
 
