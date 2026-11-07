@@ -110,6 +110,7 @@ Status: Planned
 | [DEPLOYMENT.md](DEPLOYMENT.md) | Docker, Nginx/WSS routing, scaling, monitoring |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Scaffolding, versions, scripts, testing |
 | [MOBILE.md](MOBILE.md) | Later touch, responsive layout, power/network behavior |
+| [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) | Dependency-ordered chunks, from desktop MVP through mobile |
 | [ROADMAP.md](ROADMAP.md) | Phases, acceptance gates, first-week tasks |
 | [ADMIN.md](ADMIN.md) | ACP pages, roles, create-server variables and spectator UI |
 

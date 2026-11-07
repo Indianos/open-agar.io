@@ -5,7 +5,8 @@ Status: Planned
 All work below is planned and unchecked because there is no implementation.
 Documentation completion does not complete an implementation phase.
 Sequence vertical slices so a developer can observe each mechanic end-to-end
-before adding scale or account complexity.
+before adding scale or account complexity. For the compact dependency-ordered
+view, see [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 
 ## Phase 1 — desktop prototype
 
