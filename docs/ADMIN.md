@@ -57,11 +57,14 @@ Admin notices require the separate player notification extension described in
 admin commands.
 
 Kick/kill finalize a life as `left`; a life touched by mass/kill/kick/ban or runtime
-gameplay changes is unranked, avoiding manipulated leaderboard entries. Details
+gameplay changes is unranked, avoiding manipulated leaderboard entries. Custom
+presets differing from default gameplay values are unranked pending a comparability
+decision. Details
 remain available in history. Rename/mute/message do not alter mechanics.
 Set-mass accepts `[ownedCellCount * MIN_CELL_MASS,
 ownedCellCount * MAX_CELL_MASS]`, recalculates radii/bounds at the next tick, and
-fails if the player has died or its cell count changed before execution.
+requires `expectedCellCount` from the authenticated live-player detail endpoint.
+It fails if the player has died or its cell count changed before execution.
 
 ## Create-server variables
 
@@ -160,5 +163,6 @@ Status: Planned
 - Decide initial admin provisioning and password recovery procedure; no public registration.
 - Confirm child-process deployment versus separate per-game containers for hard limits.
 - Agree audit retention/access policy and measured spectator bandwidth targets.
-- Confirm whether follow must find a target outside the current viewport
-  (proposal: bounded, selected-player position metadata over authenticated IPC).
+- Approve the bounded selected-player follow-position channel; it reveals no
+  unrelated entities outside the requested viewport.
+- Define preset leaderboard comparability before ranking any custom-rule arenas.

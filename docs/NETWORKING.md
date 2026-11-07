@@ -314,6 +314,9 @@ message is `AUTH` containing exactly 43 ASCII base64url ticket bytes; authentica
 within 5 seconds or close 1008. The ticket is session-bound, not in the URL.
 After AUTH send VIEWPORT to subscribe to one server generation. Reconnect gets a
 new ticket and a new initial snapshot, not a replay of uncertain commands.
+The first SNAPSHOT confirms successful authentication/subscription; AUTH failure
+closes the socket. Serialize AUTH validation before processing the first VIEWPORT
+(at most one bounded pending viewport); accept no commands while authenticating.
 
 Use little-endian fields and finite floats, strict lengths and modular nonzero
 sequences as in the player codec, but a **different 16-byte header** and codec
@@ -335,9 +338,11 @@ duplicate batch parts, and unrecognized actions.
 | `0x01` | ACP → control | AUTH | 43 |
 | `0x02` | ACP → control | VIEWPORT | `42 + serverIdBytes` |
 | `0x03` | ACP → control | COMMAND | `42 + serverIdBytes + argsBytes` |
-| `0x81` | Control → ACP | SNAPSHOT | `24 + 32 * recordCount` |
-| `0x82` | Control → ACP | DELTA | `24 + 36 * recordCount` |
+| `0x04` | ACP → control | FOLLOW | 4 |
+| `0x81` | Control → ACP | SNAPSHOT | `40 + 32 * recordCount` |
+| `0x82` | Control → ACP | DELTA | `40 + 36 * recordCount` |
 | `0x83` | Control → ACP | COMMAND_RESULT | `21 + resultBytes` |
+| `0x84` | Control → ACP | FOLLOW_POSITION | 33 |
 | `0xff` | Control → ACP | ERROR | `3 + textBytes`, same error payload shape as player ERROR |
 
 UUIDs are 16 raw bytes in RFC canonical hex order (not GUID mixed-endian);
@@ -366,10 +371,12 @@ pixels per WU, independent of DPR. Whole-world views are allowed only here.
 
 Clamp rectangle to world bounds; reject empty intersection. ACP derives zoom and
 rectangle from Canvas CSS size; server chooses LOD, not a requested detail enum.
+Require `width * zoom` and `height * zoom` ≤4096 CSS px to bound fabricated
+high-detail world views; viewport can cover the whole world at an appropriate zoom.
 At most 10 viewport updates/s, coalescing pending movement to the newest request.
 The subscription retains the last committed visible set across view changes.
 
-SNAPSHOT and DELTA share the following 24-byte payload prefix:
+SNAPSHOT and DELTA share the following 40-byte payload prefix:
 
 | Offset | Field | Type | Rule |
 | --- | --- | --- | --- |
@@ -382,12 +389,13 @@ SNAPSHOT and DELTA share the following 24-byte payload prefix:
 | 20 | recordCount | u16 | ≤1800 snapshot or ≤1600 delta records/part |
 | 22 | lod | u8 | 0 detailed, 1 medium, 2 overview |
 | 23 | reserved | u8 | 0 |
+| 24 | generation | bytes[16] | Must match current subscribed server generation |
 
 Each snapshot record is 32 bytes:
 
 | Offset | Field | Type | Rule |
 | --- | --- | --- | --- |
-| 0 | renderId | u32 | Stable within subscription/LOD; nonzero |
+| 0 | renderId | u32 | Stable while tracked within subscription/LOD; nonzero |
 | 4 | playerId | u32 | Actual player ID for cells; 0 for nonplayers |
 | 8 | x | f32 | Center WU |
 | 12 | y | f32 | Center WU |
@@ -403,6 +411,9 @@ Each snapshot record is 32 bytes:
 Admin render IDs are a separate namespace mapped from entity IDs and stable food
 tile keys; never pass them as player targets. No arbitrary mass cap/radius
 formula applies to aggregate graphics. No account/email/name strings are included.
+Release mappings after committed removal; reentry may allocate a new ID. Never
+reuse an ID in a subscription; reset subscription before u32 exhaustion. Keep
+mapping storage bounded by tracked/pending records, not all historical entities.
 
 Each DELTA record is a 4-byte operation prefix plus a **complete 32-byte record**:
 
@@ -436,6 +447,9 @@ display “resyncing” until the latest requested viewSequence commits.
 On gap/timeout/invalid base, request reset=1, discard pending batches, and wait for
 a SNAPSHOT; a full **regional** snapshot is allowed for initial load and recovery.
 Changing server/generation always creates a new subscription/baseline.
+Discard old-generation batches, even if their revisions/view sequences match.
+After reset=1, ignore old deltas until a snapshot for that reset viewSequence (or
+a newer coalesced request) commits; reset does not replay pending commands.
 
 ### LOD, bandwidth, and flow control
 
@@ -451,15 +465,30 @@ Aggregate only visible food, using tile center, sum mass, count, half-tile-diago
 visual radius; include tiles intersecting viewport. Player IDs remain individually
 selectable at every LOD; crowded overview clicks should offer a candidate list or
 zoom-in. Do not aggregate players into actionable anonymous blobs. Interpolate
-matching IDs, never infer kills; follow requests new viewport updates using bounded
-selected-player position metadata over IPC.
+matching IDs, never infer kills. FOLLOW is a nonmutating subscription message
+with one u32 playerId (0 stops following), limited to 2/s. Control resolves it
+only in the subscribed generation, sends typed `FOLLOW` IPC to the game, and
+receives at most one selected-player center sample per feed interval even if that
+player leaves the viewport. ACP still computes/sends its bounded viewport.
+
+| FOLLOW_POSITION offset | Field | Type | Rule |
+| --- | --- | --- | --- |
+| 0 | generation | bytes[16] | Current subscription generation |
+| 16 | playerId | u32 | Selected actual player ID |
+| 20 | available | u8 | 0 disappeared, 1 live |
+| 21 | x | f32 | Mass-weighted center WU; 0 if unavailable |
+| 25 | y | f32 | Same |
+| 29 | serverTick | u32 | Sampling tick |
+
+Unavailable clears follow; stale-generation samples are ignored. This is bounded
+selected-target metadata, not an uncropped entity feed or gameplay command.
 
 Admin caps in `shared/admin-protocol.js`: inbound 4096 bytes, outbound 61440 bytes,
 6000 records/subscription, 8 parts/batch, one subscription/socket, two sockets/admin.
-Maximum snapshot part: `16 + 24 + 1800*32 = 57,640` bytes. Maximum delta part:
-`16 + 24 + 1600*36 = 57,640` bytes. Full 6000-record snapshot ≈192 KiB.
-Example 200 changed records at 10 Hz ≈72,400 bytes/s (before WS/TLS);
-20 changes at 5 Hz ≈3,800 bytes/s. A 2000-food/200-player whole-world view at
+Maximum snapshot part: `16 + 40 + 1800*32 = 57,656` bytes. Maximum delta part:
+`16 + 40 + 1600*36 = 57,656` bytes. Full 6000-record snapshot ≈188 KiB.
+Example 200 changed records at 10 Hz ≈72,560 bytes/s (before WS/TLS);
+20 changes at 5 Hz ≈3,880 bytes/s. A 2000-food/200-player whole-world view at
 overview costs at most about 39 KiB initially before other entities, with food
 tile occupancy/density controlling the actual count. Targets: ≤128 KiB/s active
 detail, ≤32 KiB/s settled overview; these are workload targets, not guarantees.
@@ -478,7 +507,8 @@ Status: Planned
 
 Only selected-player mutations use COMMAND; lifecycle, presets, bans, and live
 config also have REST endpoints. Both transports share authorization, validation,
-audit, idempotency, and the same private IPC dispatcher. Follow remains local.
+audit, idempotency, and the same private IPC dispatcher. Follow changes local
+camera/subscription metadata only, not game state or audit command status.
 
 | COMMAND offset | Field | Type | Rule |
 | --- | --- | --- | --- |

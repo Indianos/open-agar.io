@@ -49,6 +49,7 @@ flowchart LR
 | `shared/constants.js`, `shared/protocol.js` | Pure constants, codecs, schema version | Import Node-only APIs in browser code |
 | `db/migrations/` | Ordered immutable schema changes | Store live arena positions |
 | `control/index.js`, `control/http/routes.js` | Admin API, auth, audit, static ACP | Accept player sessions as admin credentials |
+| `control/router.js` | Separate public listener; registry-only player routing | Expose admin API through player-origin routes |
 | `control/process-manager.js`, `control/ipc.js` | Fork lifecycle, health, validated IPC | Execute shell commands supplied by admin forms |
 | `control/net/spectator.js` | Separate admin WS, viewport subscriptions/deltas | Reuse player opcodes or authorize in the browser |
 | `admin/src/` | React pages/forms plus imperative Canvas wrapper | Render every entity through React |
@@ -99,7 +100,8 @@ if still behind:
 schedule next wake-up; never busy-spin
 ```
 
-`MAX_CATCHUP_STEPS = 3`; target tick compute p95 < 20 ms and p99 < 30 ms.
+`MAX_CATCHUP_STEPS = 3`; default-30-Hz target tick compute p95 < 20 ms and
+p99 < 30 ms; alternate-rate gates are in DEPLOYMENT.md.
 Dropping excess accumulated time intentionally slows an overloaded arena rather
 than allowing unbounded catch-up. Alert and stop admissions; never increase `dt`
 or let clients compensate by moving faster. Resolve competing eaters by greatest
@@ -175,6 +177,7 @@ invalidates old commands, subscriptions, tickets, and resume tokens.
 | `HEALTH` | Game → control every 1 s | generation, live/grace player count, tick p95, CPU interval, RSS |
 | `COMMAND` / `RESULT` | Control → game / game → control | command UUID, generation, actor ID, allowlisted action/target/args / outcome, applied tick |
 | `SUBSCRIBE` / `VIEWPORT` / `UNSUBSCRIBE` | Control → game | subscription ID, authorized viewport/zoom and view sequence |
+| `FOLLOW` / `FOLLOW_POSITION` | Control ↔ game | subscription, generation, one selected player ID / bounded center or unavailable |
 | `SPECTATOR_BATCH` | Game → control | subscription, generation, revision/base, scoped records |
 | `DB_REQUEST` / `DB_RESULT` | Game ↔ control | bounded repository operation, request UUID, validated args/result |
 | `STOP` | Control → game | command UUID, generation, graceful shutdown deadline |

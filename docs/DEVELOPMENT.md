@@ -185,15 +185,38 @@ open-agar.io/
 │       ├── input/touch.js          (phase 6)
 │       ├── net/connection.js
 │       └── render/canvas.js
+├── admin/
+│   ├── index.html
+│   ├── vite.config.js
+│   └── src/                       (React pages/components listed in ADMIN.md)
+│       ├── main.jsx
+│       ├── App.jsx
+│       ├── components/SpectatorCanvas.jsx
+│       ├── net/admin-connection.js
+│       └── state/spectator-store.js
+├── control/
+│   ├── index.js
+│   ├── router.js
+│   ├── process-manager.js
+│   ├── ipc.js
+│   ├── http/routes.js
+│   ├── net/spectator.js
+│   ├── tests/admin.test.js
+│   └── tests/game-fixture.js
 ├── shared/
 │   ├── constants.js
 │   ├── protocol.js
-│   └── protocol.test.js
+│   ├── protocol.test.js
+│   ├── server-config.js
+│   ├── admin-protocol.js
+│   ├── admin-protocol.test.js
+│   └── render/canvas.js
 ├── db/
 │   ├── migrations/001_initial.sql
+│   ├── migrations/002_admin.sql
 │   └── data/                      (ignored runtime files)
 ├── deploy/nginx.conf
-└── docs/                          (eleven blueprint documents)
+└── docs/                          (twelve blueprint documents, including ADMIN.md)
 ```
 
 ### Planned local configuration
@@ -250,6 +273,7 @@ Proposed `.gitignore`:
 ```gitignore
 node_modules/
 client/dist/
+admin/dist/
 db/data/
 coverage/
 *.log
@@ -260,7 +284,7 @@ coverage/
 *.heapprofile
 ```
 
-Planned `.prettierignore` should contain `node_modules/`, `client/dist/`,
+Planned `.prettierignore` should contain `node_modules/`, `client/dist/`, `admin/dist/`,
 `db/data/`, `coverage/`, and `package-lock.json` on separate lines.
 
 ## Conventions, linting, and workflow
@@ -371,3 +395,119 @@ local DevTools, never expose inspector ports publicly. Use
 hash occupancy histogram. Check O(n²) collision hotspots and excess snapshot
 allocation before micro-optimizing math. Profiles may contain user data; keep
 them private, out of Git, and delete after analysis.
+
+## ACP development extension
+
+Status: Planned
+
+Add this at the ACP roadmap milestones, not by rerunning initial setup or
+replacing the vanilla client. All paths/config remain planned. Reuse the single
+root manifest/lockfile and the existing Vite/Fastify/ws pins. Official package
+verification for this extension (2026-11-07):
+
+| New package | Proposed pin | Official source / scope |
+| --- | --- | --- |
+| `react`, `react-dom` | 19.2.0 each | [React manifest](https://github.com/facebook/react/blob/v19.2.0/packages/react/package.json), [React DOM manifest](https://github.com/facebook/react/blob/v19.2.0/packages/react-dom/package.json); client-only React, no server components/backend framework |
+| `@vitejs/plugin-react` | 6.1.1 | [Manifest](https://github.com/vitejs/vite-plugin-react/blob/plugin-react%406.1.1/packages/plugin-react/package.json); Vite `^8.0.0`, Node `^20.19.0 \|\| >=22.12.0`, compatible with retained Vite 8.3.4 and Node 24 |
+
+Check advisories again when installing; these are compatible proposal pins,
+not “latest” claims. React Canvas setup/cleanup follows official
+[Effect lifecycle](https://react.dev/reference/react/useEffect) and
+[refs](https://react.dev/reference/react/useRef); do not keep thousands of entity
+updates in React state. Node's [24.0.0 fork docs](https://nodejs.org/docs/v24.0.0/api/child_process.html#child_processforkmodulepath-args-options)
+support IPC and advanced serialization without extra flags; send callback is not
+game acknowledgment. Use explicit message IDs, deadlines and bounded queues.
+`worker_threads` is an alternative, not independent per-game CPU/RSS isolation.
+
+Planned one-time ACP scaffolding at the project root (only if `admin/` is absent):
+
+```sh
+mkdir -p control/http control/net control/tests shared/render
+npm create --yes vite@9.2.1 admin -- --template react --no-interactive --no-immediate
+rm admin/package.json admin/eslint.config.js
+npm install --save-exact react@19.2.0 react-dom@19.2.0
+npm install --save-dev --save-exact @vitejs/plugin-react@6.1.1
+```
+
+Remove only the freshly generated nested manifest/lint config; keep/rework
+`admin/src/main.jsx`, `App.jsx`, CSS, and `index.html`. Do not install inside
+`admin`, and do not copy the template's extra dependency ranges into the root.
+Use the root lint policy extended for JSX below.
+
+Merge these script updates into the existing manifest:
+
+```json
+{
+  "scripts": {
+    "dev:control": "node --env-file=.env --watch control/index.js",
+    "dev:admin": "vite --config admin/vite.config.js",
+    "build:client": "vite build --config client/vite.config.js",
+    "build:admin": "vite build --config admin/vite.config.js",
+    "build": "npm run build:client && npm run build:admin",
+    "start": "node control/index.js",
+    "start:standalone": "node server/index.js",
+    "lint": "eslint server control shared client/src admin/src client/vite.config.js admin/vite.config.js",
+    "test:admin": "node --test control/tests/admin.test.js shared/admin-protocol.test.js"
+  }
+}
+```
+
+Retain test, migration, formatting, dev:client and dev:server scripts. In managed
+development run `dev:control`, `dev:client`, and `dev:admin` in three terminals,
+**not** dev:server: control binds 3000/3001 and starts the default child in
+3100..3199. Extend `.env.example`/`.env` with DEPLOYMENT.md control defaults and
+apply migration 002 via `npm run db:migrate` before managed mode. Admin provisioning
+must be resolved without default passwords before login can be exercised.
+
+Planned `admin/vite.config.js`:
+
+```js
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { fileURLToPath } from 'node:url';
+
+export default defineConfig({
+  root: fileURLToPath(new URL('.', import.meta.url)),
+  base: '/admin/',
+  plugins: [react()],
+  server: {
+    host: 'localhost',
+    port: 5174,
+    strictPort: true,
+    proxy: {
+      '/admin/api': { target: 'http://127.0.0.1:3001', changeOrigin: false },
+      '/admin/ws': { target: 'ws://127.0.0.1:3001', ws: true, changeOrigin: false }
+    }
+  },
+  build: { outDir: 'dist', emptyOutDir: true }
+});
+```
+
+Open `http://localhost:5174/admin/`; production serves admin/dist under `/admin/`
+on the separate admin origin. Shared Canvas imports must be browser-safe; separate
+connection stores/codecs prevent spectator delta state leaking into player code.
+Add `admin/dist/**` to root ESLint ignores and generated-output ignore files.
+Extend browser globals to admin files; add a JSX flat-config block using
+`files: ['admin/src/**/*.jsx']`, parserOptions `ecmaFeatures: {jsx: true}`.
+The existing core `no-unused-vars` rule cannot recognize JSX-only component uses:
+scope `varsIgnorePattern: '^[A-Z]'` to that block, retaining other checks and
+explicit JSX imports. React-specific hook lint rules remain a future tool choice;
+do not blindly inherit a nested scaffold lint stack.
+
+Tests remain built-in `node:test` for control/routes, IPC and pure spectator store:
+viewer-denied writes, separate sessions, CSRF/IP rejection, preset validation,
+version conflicts, spawn-ready/failure/stop/restart, stale generations, metrics
+aging, idempotent command ACK/unknown outcomes, audit-before-dispatch, bans racing
+joins, and zero subprocess creation for invalid inputs. Use fixture child
+processes without production ports/secrets. Planned
+`control/tests/game-fixture.js` implements the minimal test IPC lifecycle,
+not a production launcher. Test admin codec golden bytes,
+viewport/LOD entry-exit diffs, multipart atomicity, contiguous revision chains,
+rapid pan, backpressure/reset, and generation change.
+
+Canvas/React integration requires browser checks: mount/unmount and Strict Mode
+do not double-subscribe; resize/DPR, pan/zoom, follow, click actions, safe text,
+role menus, reconnect/reset all behave as specified. No new browser test runner
+is required by this docs-only change; choose one separately if automating UI
+tests. After implementation run `npm run test:admin`, `npm run lint`, `npm test`,
+and both builds. Measure spectator load without exceeding the game tick budget.

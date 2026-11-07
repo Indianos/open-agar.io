@@ -251,6 +251,7 @@ through a player server or silently fall back to ACP HTML.
 | `PUT /presets/:presetId` | operator | 201; expectedVersion, name, variables, reason; append new immutable version |
 | `GET /users?q=Blue&limit=20&cursor=...` | moderator/operator | 200; registered user search |
 | `GET /users/:userId` | moderator/operator | 200; stats and active player targets |
+| `GET /servers/:serverId/players/:playerId?generation=...` | moderator/operator | 200; live name, userId or null, cellCount, totalMass, muted |
 | `POST /servers/:serverId/players/:playerId/actions` | moderator/operator, action-specific | 202; same command fields as admin WS |
 | `POST /bans` | moderator/operator | 201; userId, expiresAt or null, reason, commandId |
 | `GET /bans?userId=...&active=true` | moderator/operator | 200; paginated bans |
@@ -329,7 +330,7 @@ Unknown/stopped metrics are null, never fabricated zero usage. Stats response:
 {
   "user":{"id":"10bd7ea3-c691-48a4-8e87-a81596060774","displayName":"BlueCell"},
   "stats":{"retainedMatches":12,"bestRankedMass":942.25,"retainedDurationTicks":54000},
-  "activePlayers":[{"serverId":"arena-2","generation":"4105e936-83db-44cc-b2fa-66bb7bbab8d1","playerId":42,"muted":false}]
+  "activePlayers":[{"serverId":"arena-2","generation":"4105e936-83db-44cc-b2fa-66bb7bbab8d1","playerId":42,"cellCount":1,"totalMass":100,"muted":false}]
 }
 ```
 
@@ -344,7 +345,7 @@ Player action request:
   "commandId":"be9f89a2-c077-4e99-a481-7573757ea07c",
   "generation":"4105e936-83db-44cc-b2fa-66bb7bbab8d1",
   "action":"set_mass",
-  "args":{"totalMass":100,"reason":"Test a collision boundary"}
+  "args":{"totalMass":100,"expectedCellCount":1,"reason":"Test a collision boundary"}
 }
 ```
 
@@ -355,7 +356,7 @@ Player action request:
 | `mute` | `enabled`: boolean; live-only state | moderator/operator |
 | `rename` | `displayName`: existing name constraints | moderator/operator |
 | `kill` | none | operator |
-| `set_mass` | `totalMass`: finite bounded number per ADMIN.md | operator |
+| `set_mass` | `totalMass`: finite bounded number per ADMIN.md; `expectedCellCount`: integer 1..16 | operator |
 | `message` | `text`: ≤200 code points/512 UTF-8 bytes | moderator/operator |
 
 All mutation reasons: 1..200 trimmed code points, ≤512 UTF-8 bytes, no controls.
@@ -385,7 +386,7 @@ Additional admin errors in the same envelope:
 | --- | --- | --- |
 | 403 | `ADMIN_FORBIDDEN`, `ADMIN_IP_DENIED` | Wrong role or network |
 | 404 | `SERVER_NOT_FOUND`, `PLAYER_NOT_FOUND`, `PRESET_NOT_FOUND` | Missing registered target |
-| 409 | `STALE_GENERATION`, `PRESET_VERSION_CONFLICT`, `CONFIG_REVISION_CONFLICT`, `COMMAND_CONFLICT`, `INVALID_SERVER_STATE` | Stale/conflicting mutation |
+| 409 | `STALE_GENERATION`, `PLAYER_STATE_CONFLICT`, `PRESET_VERSION_CONFLICT`, `CONFIG_REVISION_CONFLICT`, `COMMAND_CONFLICT`, `INVALID_SERVER_STATE` | Stale/conflicting mutation |
 | 400 | `PRESET_INVALID`, `ACTION_INVALID`, `GUEST_BAN_UNSUPPORTED` | Unsupported variables/action target |
 | 503 | `RESOURCE_LIMIT`, `AUDIT_UNAVAILABLE`, `IPC_UNAVAILABLE` | Admission/audit/dispatch cannot proceed |
 

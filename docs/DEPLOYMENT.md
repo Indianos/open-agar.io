@@ -8,6 +8,9 @@ Status: Planned
 
 One host, one Node.js service, one SQLite volume, one public Nginx TLS endpoint.
 Static assets and API share an origin; Nginx forwards WSS to the same service.
+This remains the pre-ACP prototype topology. The ACP extension and changes to
+these release examples are specified in [ACP deployment](#acp-deployment-and-process-limits);
+do not run the standalone and managed listeners on port 3000 simultaneously.
 No infrastructure files currently exist. Planned files:
 `Dockerfile`, `.dockerignore`, `deploy/nginx.conf`, `.env.example`.
 The examples below become runnable only after
@@ -237,3 +240,162 @@ split/eject storms, slow clients, packet loss, and auth traffic. Keep run report
 Validate Nginx config with `nginx -t`, test WSS idle >75 seconds with heartbeats,
 and test reconnect after a mobile IP change before claiming scale readiness.
 Backups/restores and migration rollback planning follow [DATABASE.md](DATABASE.md).
+
+## ACP deployment and process limits
+
+Status: Planned
+
+For the initial ACP on one host, run the control server plus forked game children
+inside a `node:24` container. The control server owns two separate listeners:
+public game routing/static files and private admin API/ACP/WS. The manager uses
+only a fixed child entry point and configured private port pool. No public
+process-management endpoint and no arbitrary upstream address is accepted.
+
+| Planned listener/path | Local port / route | Production exposure |
+| --- | --- | --- |
+| Player Vite | 5173 | Development only |
+| ACP Vite | 5174; `/admin/` base | Development only |
+| Public game front door | 3000; `/api/v1`, `/ws/<serverId>`, player assets | `game.example.com:443` via Nginx |
+| Control/admin | 3001; `/admin/`, `/admin/api/v1`, `/admin/ws` | `admin.example.com:443`, IP allowlist + admin auth |
+| Game children | Allocated 3100..3199, loopback in container | Never published |
+
+In managed mode, planned `control/router.js` routes public game requests/WS by
+validated registry IDs to private child ports. `/api/v1/play/tickets` routes to
+the requested ready arena; shared account/history/static requests use the
+configured default ready arena. Missing default readiness returns 503, not an
+admin fallback. Control routing has no admin privileges on its public listener.
+Bootstrap `local-1` from the default config to retain the existing quick start;
+additional IDs are manager-assigned. Publish a route only after READY, withdraw
+it before stop, and propagate existing player Origin/heartbeat behavior.
+Nginx's game upstream remains loopback 3000, but now reaches this registry router
+rather than a single arena. Do not edit/reload Nginx for every Create-server form.
+
+### Planned Docker extension
+
+Status: Planned
+
+Once ACP entrypoints/scripts exist, extend the existing Dockerfile rather than
+adding another backend stack:
+
+- Add `COPY admin ./admin` before `npm run build`; `build` then produces both
+  `client/dist` and `admin/dist`.
+- In runtime, copy `control/` and `admin/dist` (chown node:node), retain `server/`,
+  `shared/`, DB migrations and production dependencies.
+- Expose `3000 3001`; change CMD to `["node", "control/index.js"]`.
+- Keep `node:24` builder/runtime, non-root user, `--init`, graceful stop, and DB
+  volume. Add `admin/node_modules` and `admin/dist` to `.dockerignore`.
+- Replace the single-host run's published ports with
+  `-p 127.0.0.1:3000:3000 -p 127.0.0.1:3001:3001` and add
+  `--cpus=2 --memory=2g --pids-limit=128`. These cap the **entire container**,
+  not each forked child. Migrate 001/002 once before control startup.
+
+Proposed per-game process policy: one CPU-core workload budget, V8 old heap
+384 MiB (`fork` execArgv `--max-old-space-size=384`), RSS soft limit 512 MiB,
+5-second health timeout, and at most two game children by default in the sample
+2-core/2-GiB container. Reserve memory/CPU for control, DB, and IPC. Enforce host
+admission first; heap limits alone do not include native/buffer allocations.
+If RSS exceeds policy for 5 consecutive samples, withdraw admission, mark failed,
+and stop the process gracefully/forcefully using the lifecycle deadline. Sustained
+CPU/tick overload stops admissions and alerts; do not claim a hard CPU quota.
+Resource configuration is operator environment policy, never a preset override.
+
+**Independent hard limits require one container per game** (or operator-managed
+cgroups). Proposed isolated-game launch policy is `--cpus=1 --memory=512m
+--pids-limit=64 --init` per `node:24` game container, with a separate control
+container and private network/routes. Native fork IPC cannot cross container
+boundaries: a trusted local launcher must broker the same validated IPC envelopes
+over an authenticated private channel. Its mechanism/credentials are an open
+deployment decision, not a working feature of the initial fork design.
+Never mount an unrestricted Docker socket into the web-facing control container.
+Do not pretend worker_threads `resourceLimits` caps CPU, ArrayBuffers, or RSS.
+
+### Planned admin Nginx extension
+
+Status: Planned
+
+Add an admin upstream/listener block in the same `http` context; retain the
+existing Upgrade map. Replace the example allow CIDR with the approved network.
+Use a separate certificate and explicit exact Origin checks in control:
+
+```nginx
+upstream agar_control {
+    server 127.0.0.1:3001;
+}
+server {
+    listen 443 ssl;
+    server_name admin.example.com;
+    ssl_certificate /etc/letsencrypt/live/admin.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/admin.example.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    allow 192.0.2.0/24; # Documentation-only CIDR; replace before deployment.
+    deny all;
+    client_max_body_size 16k;
+
+    location = /admin/ws {
+        proxy_pass http://agar_control;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header Origin $http_origin;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_buffering off;
+        proxy_read_timeout 75s;
+        proxy_send_timeout 75s;
+    }
+    location /admin/ {
+        proxy_pass http://agar_control;
+        proxy_set_header Host $host;
+        proxy_set_header Origin $http_origin;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $remote_addr;
+    }
+    location / { return 404; }
+}
+```
+
+Player-origin `/admin/*` routes must be rejected, not proxied to port 3001. Admin
+API/WS routes are checked before SPA fallback; admin assets never include secrets.
+On a host-proxy/container deployment, configure `TRUST_PROXY` with the actual
+Docker bridge/proxy source CIDR if it is not loopback. Verify spoofed forwarded
+headers and denial from outside the allowlist before exposing ACP.
+
+### Planned control environment and telemetry
+
+Status: Planned
+
+| Variable | Development default | Rule |
+| --- | --- | --- |
+| `CONTROL_HOST` | `127.0.0.1` | `0.0.0.0` only inside private container binding |
+| `CONTROL_PORT` | `3001` | Separate from public PORT=3000 |
+| `ADMIN_PUBLIC_ORIGIN` | `http://localhost:5174` | Production exact `https://admin.example.com` |
+| `ADMIN_ALLOWED_ORIGINS` | `http://localhost:5174,http://localhost:3001` | Production admin origin only |
+| `ADMIN_IP_ALLOWLIST` | `127.0.0.1/32,::1/128` | Production explicit operator CIDRs; empty denies all |
+| `GAME_PORT_START`, `GAME_PORT_END` | `3100`, `3199` | Private pool; reject overlaps/reserved ports |
+| `MAX_GAME_PROCESSES` | `2` | Admission/resource cap, not player count |
+| `GAME_HEAP_MB`, `GAME_RSS_MB` | `384`, `512` | Heap cap/RSS watchdog; no claimed hard isolation |
+
+Manager assigns child ARENA_ID/PORT/config/generation, passes only child-required
+environment, and keeps admin session/config secrets out of game processes.
+Control hosts the shared DB worker; game health reports process CPU via
+`process.cpuUsage()` interval divided by elapsed microseconds, RSS via
+`process.memoryUsage().rss` (includes workers), and arena tick p95. Sampling is
+1 Hz; snapshots/spectator send are separate 5–10 Hz workloads. Do not use the
+control process's CPU/RSS as game metrics; workers share process RSS and cannot
+provide independent per-game memory metrics in worker-only mode.
+
+Control shutdown stops admissions/routes, stops all children with the existing
+40-second deadline, flushes audits/results, and exits; orphan processes close on
+IPC disconnect. New control startup reconciles pending audit commands as unknown,
+does not blindly rerun starts/mutations, and boots only its configured default
+arena. Registry persistence/host recovery beyond this remains an open decision.
+At alternate tick rates use p95 <0.6×tick interval and p99 <0.9×interval as initial
+load gates; existing 20/30 ms targets describe only 30 Hz.
+
+Official verification:
+[Node 24 fork/IPC](https://nodejs.org/docs/v24.0.0/api/child_process.html#child_processforkmodulepath-args-options),
+[send acknowledgment semantics](https://nodejs.org/docs/v24.0.0/api/child_process.html#subprocesssendmessage-sendhandle-options-callback),
+[worker resourceLimits](https://nodejs.org/docs/v24.0.0/api/worker_threads.html#new-workerfilename-options),
+[process metrics](https://nodejs.org/docs/v24.0.0/api/process.html#processmemoryusage),
+[Docker CPU/memory constraints](https://docs.docker.com/engine/containers/resource_constraints/).

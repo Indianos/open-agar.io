@@ -59,7 +59,7 @@ Status: Planned
 
 - [ ] Implement migrations/repository/DB worker and idempotent final results.
 - [ ] Implement Argon2id registration, opaque sessions, CSRF, logout revocation.
-- [ ] Add all planned [API.md](API.md) endpoints and response schemas.
+- [ ] Add planned player [API.md](API.md) endpoints and response schemas.
 - [ ] Add public best-mass leaderboard and private own-match history.
 - [ ] Establish account deletion/retention procedure and decide verification/recovery.
 - [ ] Test authorization, uniqueness, session expiry, SQL injection, restore.
@@ -68,6 +68,60 @@ Status: Planned
 replayed result jobs do not change counts/scores; users cannot read another user's
 history; CSRF/Origin tests pass; backup restore recovers accounts and rankings.
 Guest play remains usable without registration.
+
+## ACP A — control server and process manager (after phase 4)
+
+Status: Planned
+
+- [ ] Add control server, typed IPC, managed DB ownership and public registry router.
+- [ ] Implement fixed-entrypoint spawn, generation IDs, READY/health and metrics.
+- [ ] Implement guarded stop/restart, admission/heap/RSS policy and shutdown.
+- [ ] Test spawn failure, stale generation, uncertain ACK and no orphan processes.
+
+**Definition of done:** control starts/stops two fixture game processes, reports
+per-child CPU/RSS/player/tick metrics, withdraws unhealthy routes, and rejects
+arbitrary executable/port input. Worker limits are not presented as hard quotas.
+This follows persistence/auth boundaries from phase 4 and feeds phase-5 scaling.
+
+## ACP B — auth and server list (after ACP A)
+
+Status: Planned
+
+- [ ] Implement admin/admin-session/audit migration, provisioning procedure and roles.
+- [ ] Add separate admin origin, IP allowlist, CSRF/session/ticket handling.
+- [ ] Scaffold React/Vite ACP; add login, server list/detail and audited stop/restart.
+- [ ] Test player credentials denied, role enforcement, logout and audit outage.
+
+**Definition of done:** allowlisted operator logs in and sees accurate/stale-marked
+server metrics; viewer cannot mutate; unauthorized REST/WS calls fail; lifecycle
+UI reports acknowledged outcome rather than transport success.
+
+## ACP C — presets and Create server (after ACP B)
+
+Status: Planned
+
+- [ ] Add versioned server_presets and shared config validation/default mapping.
+- [ ] Add preset forms, save/version endpoints and explicit create-from-version.
+- [ ] Propagate tick/world config through WELCOME and instance mechanics.
+- [ ] Add guarded live config updates and custom-preset unranked policy.
+- [ ] Test bounds/population cap, version conflicts, failed starts and resource refusal.
+
+**Definition of done:** saved valid preset starts exactly one managed arena;
+invalid form never allocates a process; editing preset cannot change a running
+server; restart/config semantics and negotiation pass 15/30/60 Hz tests.
+
+## ACP D — user management (after ACP C)
+
+Status: Planned
+
+- [ ] Add user search/retained stats/active tuple lookup and ban persistence.
+- [ ] Add role-filtered kick, ban, mute, live rename, kill, set-mass and notices.
+- [ ] Resolve guest-ban/mute scope before claiming those operations complete.
+- [ ] Test ban admission races, stale player/generation, audits and unranked lives.
+
+**Definition of done:** authorized mutations apply once at a tick boundary,
+disabled actions are denied server-side, bans survive restart, and manipulated
+lives cannot enter leaderboards. No chat subsystem is implicitly introduced.
 
 ## Phase 5 — scale and polish
 
@@ -85,6 +139,23 @@ Status: Planned
 the agreed hardware/player target; no memory growth in a one-hour soak; valid TLS,
 WSS routing and recovery pass; result durability survives process loss; monitored
 deployment and restore are rehearsed. No unsupported capacity claims.
+
+## ACP E — live spectator delta feed (after ACP D and phase 5)
+
+Status: Planned
+
+- [ ] Implement separate admin WS authentication, regional snapshot and delta codec.
+- [ ] Add zoom LOD, viewport incremental resync, interpolation and backpressure.
+- [ ] Extract shared Canvas renderer; add React spectator wrapper and player menu.
+- [ ] Add follow, command pending/results, role checks and safe admin notices.
+- [ ] Measure whole-map overview and detailed-pan bandwidth/tick cost.
+- [ ] Test rapid viewport/LOD changes, dependency gaps, stale generation and slow readers.
+
+**Definition of done:** whole-server navigation works without continuous full-world
+snapshots; unchanged overlap survives panning; exact player targets remain safe
+at low zoom; 5–10 Hz deltas interpolate with bounded memory; commands are audited
+and acknowledged; measured observer load stays inside the phase-5 budget.
+Mobile phase 6 remains player-focused, not a mobile ACP commitment.
 
 ## Phase 6 — mobile support
 
