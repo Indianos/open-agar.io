@@ -1,0 +1,26 @@
+:root {
+  color: #f3f6f8;
+  background: #101820;
+  font-family: system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  display: grid;
+  min-height: 100vh;
+  margin: 0;
+  place-items: center;
+}
+
+main {
+  text-align: center;
+}
+
+h1 {
+  margin-bottom: 0.5rem;
+}
+
+p {
+  color: #b7c3ca;
+}

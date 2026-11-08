@@ -1,0 +1,11 @@
+node_modules/
+client/dist/
+admin/dist/
+db/data/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+*.cpuprofile
+*.heapprofile

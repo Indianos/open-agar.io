@@ -2,13 +2,12 @@
 
 Status: Planned
 
-This is a greenfield design, not a playable release. The repository originally
-contained only a title in the root README. No server, client, database, scripts,
-tests, or infrastructure are implemented. All features, endpoints, dependencies,
-commands, configuration examples, and application paths in this documentation are
-**Planned**, including paths shown without repeating that label. Documentation
-files exist as specifications; their Status lines track implementation readiness,
-not whether the prose has been written.
+This is a greenfield project under implementation, not a playable release. The
+initial Node.js tooling, validated configuration, deterministic arena foundation,
+and static client shell are implemented. Player networking, Canvas gameplay,
+database, and infrastructure remain planned. Documentation files specify the
+target; their Status lines track implementation readiness, not whether the prose
+has been written.
 
 ## Vision and scope
 
@@ -65,35 +64,24 @@ protocols/authentication stay separate; see [ADMIN.md](ADMIN.md).
 
 Status: Planned
 
-**Not runnable against this documentation-only repository.** First follow
-[setup from scratch](DEVELOPMENT.md#setup-from-scratch), then implement the named
-entry points/configuration. Once those files exist:
+The initial scaffold runs, but it does not yet support player connections or
+gameplay. On Node.js 24 or newer:
 
 ```sh
 npm ci
-npm run db:migrate
-```
-
-Run in two terminals:
-
-```sh
-npm run dev:server
-```
-
-```sh
-npm run dev:client
-```
-
-Open `http://localhost:5173`; Vite will proxy `/api` and `/ws` to
-`http://127.0.0.1:3000`. For production-style local verification:
-
-```sh
+npm test
 npm run build
+```
+
+Run the current server:
+
+```sh
 npm start
 ```
 
-Open `http://localhost:3000`. The production server must serve `client/dist`;
-`vite preview` is not the production server.
+The server currently exposes `GET /health`; the browser shell is available with
+`npm run dev:client`. `/api`, `/ws`, and Canvas gameplay will be added in later
+Phase 1 slices.
 
 ## Documentation map
 

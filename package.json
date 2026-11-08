@@ -1,0 +1,38 @@
+{
+  "name": "open-agar.io",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev:server": "node --env-file=.env --watch server/index.js",
+    "dev:client": "vite --config client/vite.config.js",
+    "build": "vite build --config client/vite.config.js",
+    "start": "node server/index.js",
+    "test": "node --test",
+    "test:watch": "node --test --watch",
+    "lint": "eslint server shared client/src client/vite.config.js",
+    "format:check": "prettier --check server shared client package.json eslint.config.js",
+    "format": "prettier --write server shared client package.json eslint.config.js"
+  },
+  "dependencies": {
+    "argon2": "0.45.1",
+    "fastify": "5.12.7",
+    "ws": "8.22.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.13.0",
+    "prettier": "3.9.10",
+    "vite": "8.3.4"
+  },
+  "overrides": {
+    "minimatch": "11.0.5"
+  },
+  "prettier": {
+    "singleQuote": true,
+    "trailingComma": "all"
+  }
+}

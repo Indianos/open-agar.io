@@ -1,14 +1,14 @@
 # Development guide
 
-Status: Planned
+Status: In progress
 
 ## Scope and verified runtime baseline
 
 Status: Planned
 
-These are implementation instructions, **not commands that work against the
-current documentation-only repository**. All application/config/test files below
-are planned. Use a current patched **Node.js 24 LTS**; keep the requested
+The initial Node project, tooling, configuration, client shell, and arena
+simulation are implemented; network play and most planned paths remain
+unfinished. Use a current patched **Node.js 24 LTS**; keep the requested
 `"engines": {"node": ">=24"}` and test/deploy on 24. A permissive engines range
 does not promise that every future Node major has been tested.
 
@@ -37,8 +37,8 @@ Status: Planned
 
 These exact versions were checked in published metadata and official source
 manifests; they are a reproducible starting proposal, not a claim of perpetual
-security or latest versions. Recheck advisories when implementing and commit the
-generated root lockfile. No dependencies are installed by this documentation PR.
+security or latest versions. The root manifest and lockfile use these versions.
+Recheck advisories when updating dependencies.
 
 | Package | Proposed exact version | Official source / compatibility |
 | --- | --- | --- |
@@ -55,6 +55,9 @@ Fastify 5 requires full JSON schemas including `type`:
 [v5 migration guide](https://github.com/fastify/fastify/blob/main/docs/Guides/Migration-Guide-V5.md).
 ESLint 10 requires flat config, not `.eslintrc`:
 [v10 migration guide](https://github.com/eslint/eslint/blob/v10.13.0/docs/src/use/migrate-to-10.0.0.md).
+The root manifest overrides ESLint's vulnerable `minimatch` dependency to
+11.0.5; retain that override until upstream dependency ranges include a patched
+version, and verify lint plus `npm audit` when updating.
 Do not copy old Vite internals: Vite 8 uses Rolldown/Oxc
 ([migration guide](https://github.com/vitejs/vite/blob/v8.3.4/docs/guide/migration.md)).
 
@@ -74,8 +77,9 @@ cd open-agar.io
 git init
 ```
 
-If already in this cloned repository, **skip those three commands**. In either
-case, perform the following only once during phase 1:
+If already in this cloned repository, **skip those three commands**. The initial
+scaffold has been created here; the following is retained as a reference and
+should only be used when creating a fresh project:
 
 ```sh
 node --version
@@ -147,8 +151,9 @@ runner, backend transpiler, or workspace configuration is required.
 
 Status: Planned
 
-Every application path below is planned; `docs/` contains the blueprint files
-listed in [README.md](README.md). Tests are colocated except integration tests.
+The tree lists both implemented foundation files and planned follow-on paths;
+`docs/` contains the blueprint files listed in [README.md](README.md). Tests are
+colocated except integration tests.
 
 ```text
 open-agar.io/
@@ -368,6 +373,9 @@ npm test
 npm run build
 git diff --check
 ```
+
+`format:check` covers application source and configuration; existing blueprint
+Markdown is preserved in its authored formatting.
 
 CI should later run those checks on Node.js 24 and build the Docker image; no CI
 workflow is delivered by this design-only task. Never treat a zero-test run as

@@ -1,0 +1,6 @@
+node_modules/
+client/dist/
+admin/dist/
+db/data/
+coverage/
+package-lock.json

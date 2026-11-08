@@ -1,12 +1,12 @@
 # Chunked implementation plan
 
-Status: Planned
+Status: In progress
 
 This plan groups the project blueprint into deliverable implementation chunks,
 ordered by dependency. It is a sequencing aid, not a delivery-date commitment;
 the detailed scope and acceptance gates remain in [ROADMAP.md](ROADMAP.md) and
-the owning specifications. The repository is documentation-only today, so no
-chunk is complete.
+the owning specifications. Chunk 1 has an initial project/tooling and simulation
+foundation; none of its end-to-end acceptance gate is complete.
 
 ## Chunks
 

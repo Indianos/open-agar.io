@@ -1,8 +1,8 @@
 # Implementation roadmap
 
-Status: Planned
+Status: In progress
 
-All work below is planned and unchecked because there is no implementation.
+Phase 1 has begun; incomplete work remains unchecked.
 Documentation completion does not complete an implementation phase.
 Sequence vertical slices so a developer can observe each mechanic end-to-end
 before adding scale or account complexity. For the compact dependency-ordered
@@ -10,10 +10,10 @@ view, see [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 
 ## Phase 1 — desktop prototype
 
-Status: Planned
+Status: In progress
 
-- [ ] Resolve baseline library/SQLite decisions; scaffold [DEVELOPMENT.md](DEVELOPMENT.md).
-- [ ] Add Node.js 24 scripts, root lockfile, config validation, lint/format checks.
+- [x] Resolve baseline library/SQLite decisions; scaffold [DEVELOPMENT.md](DEVELOPMENT.md).
+- [x] Add Node.js 24 scripts, root lockfile, config validation, lint/format checks.
 - [ ] Implement seeded 30 Hz arena with food, movement, bounds, and spatial hash.
 - [ ] Implement v1 HELLO/WELCOME/INPUT/full snapshot codec and anonymous tickets.
 - [ ] Render two desktop clients, pointer steering, camera, interpolation.
