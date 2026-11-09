@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Arena } from './arena.js';
+import { Arena } from '../server/sim/arena.js';
 
 test('same seed and intents produce identical arena states', () => {
   const first = new Arena({
@@ -52,16 +52,21 @@ test('rejects a seed outside the unsigned 32-bit range', () => {
 
 test('consumed food adds authoritative mass and replenishes to target', () => {
   const arena = new Arena({
-    seed: 7,
+    seed: 0,
     config: { foodTarget: 1, worldSize: 500 },
   });
   const player = arena.addPlayer();
-  const pellet = [...arena.food.values()][0];
-  pellet.x = player.x;
-  pellet.y = player.y;
+  const pellet = arena.food.values().next().value;
+  assert.ok(pellet);
+  const livePlayer = arena.players.get(player.id);
+  assert.ok(livePlayer);
+  livePlayer.x = pellet.x;
+  livePlayer.y = pellet.y;
 
   arena.step();
 
-  assert.equal(arena.players.get(player.id).mass, player.mass + 1);
+  const updatedPlayer = arena.players.get(player.id);
+  assert.ok(updatedPlayer);
+  assert.equal(updatedPlayer.mass, player.mass + 1);
   assert.equal(arena.food.size, 1);
 });

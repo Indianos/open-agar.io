@@ -41,10 +41,10 @@ Status: Planned
 | Layer | Proposed choice | Reason |
 | --- | --- | --- |
 | Runtime | Node.js 24 LTS; `engines.node: ">=24"` | One runtime, native ESM, test runner, workers |
-| Simulation/transport | Plain JavaScript + `ws` 8 | Fixed preset tick rate, 30 Hz default |
+| Simulation/transport | TypeScript + `ws` 8 | Fixed preset tick rate, 30 Hz default |
 | HTTP/API | Fastify 5 | JSON Schema validation and structured logging |
 | Persistence | `node:sqlite` initially; `pg` 8/Postgres later | Low setup cost, explicit migration boundary |
-| Player browser | Vanilla JS, HTML5 Canvas, Vite 8 | Input adapters isolate devices |
+| Player browser | TypeScript, HTML5 Canvas, Vite 8 | Input adapters isolate devices |
 | ACP browser | React + Vite; shared imperative Canvas | Forms/menus in React, viewport deltas and LOD for live map |
 | Control backend | Node.js control API/process manager, private IPC | Separate admin auth; spawns managed game processes |
 | Auth | `argon2` package + opaque cookie sessions | Password hashing and revocable sessions |
@@ -64,24 +64,31 @@ protocols/authentication stay separate; see [ADMIN.md](ADMIN.md).
 
 Status: Planned
 
-The initial scaffold runs, but it does not yet support player connections or
-gameplay. On Node.js 24 or newer:
+The initial TypeScript desktop MVP runs locally with guest play, pointer
+steering, food, and authoritative multiplayer snapshots. On Node.js 24 or newer:
 
 ```sh
 npm ci
 npm test
+npm run typecheck
 npm run build
 ```
 
-Run the current server:
+Copy `.env.example` to `.env`, then run the server and client in separate
+terminals:
 
 ```sh
-npm start
+cp .env.example .env
+npm run dev:server
 ```
 
-The server currently exposes `GET /health`; the browser shell is available with
-`npm run dev:client`. `/api`, `/ws`, and Canvas gameplay will be added in later
-Phase 1 slices.
+```sh
+npm run dev:client
+```
+
+Open the Vite URL in two desktop tabs, select **Play as guest**, and steer with
+the pointer. Accounts, resume/reconnect, mobile, and production readiness remain
+out of scope.
 
 ## Documentation map
 

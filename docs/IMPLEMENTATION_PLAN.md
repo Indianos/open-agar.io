@@ -5,14 +5,16 @@ Status: In progress
 This plan groups the project blueprint into deliverable implementation chunks,
 ordered by dependency. It is a sequencing aid, not a delivery-date commitment;
 the detailed scope and acceptance gates remain in [ROADMAP.md](ROADMAP.md) and
-the owning specifications. Chunk 1 has an initial project/tooling and simulation
-foundation; none of its end-to-end acceptance gate is complete.
+the owning specifications. Chunk 1 now has a playable local desktop slice;
+its clean-install and ten-minute two-client acceptance gate still needs
+operational verification.
 
 ## Chunks
 
 ### 1. Desktop MVP: two-player arena
 
-Build the smallest end-to-end playable slice: Node.js 24 project/tooling,
+Build the smallest end-to-end playable slice: Node.js 24 and TypeScript
+project/tooling,
 validated configuration, seeded 30 Hz authoritative arena, food, movement,
 world bounds, anonymous tickets, v1 HELLO/WELCOME/INPUT/full-snapshot protocol,
 Canvas rendering, pointer steering, camera, and interpolation.

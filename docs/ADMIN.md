@@ -72,8 +72,8 @@ It fails if the player has died or its cell count changed before execution.
 
 Status: Planned
 
-Planned `shared/server-config.js` owns the schema, mapping, and cross-field
-validation. `shared/constants.js` retains defaults; each instance gets an
+Planned `shared/server-config.ts` owns the schema, mapping, and cross-field
+validation. `shared/constants.ts` retains defaults; each instance gets an
 immutable validated config derived from its preset, not mutable global constants.
 Only these form fields are exposed initially. All other gameplay constants remain
 the [existing defaults](GAME_DESIGN.md#tunable-constants-starting-proposal).
@@ -131,27 +131,27 @@ Status: Planned
 
 ```text
 admin/src/
-├── main.jsx
-├── App.jsx
-├── pages/LoginPage.jsx
-├── pages/ServersPage.jsx
-├── pages/CreateServerPage.jsx
-├── pages/UsersPage.jsx
-├── pages/SpectatorPage.jsx
-├── pages/AuditPage.jsx
-├── pages/BansPage.jsx
-├── components/SpectatorCanvas.jsx
-├── components/PlayerActionsMenu.jsx
-├── components/ServerVariablesForm.jsx
-├── net/admin-connection.js
-└── state/spectator-store.js
+├── main.tsx
+├── App.tsx
+├── pages/LoginPage.tsx
+├── pages/ServersPage.tsx
+├── pages/CreateServerPage.tsx
+├── pages/UsersPage.tsx
+├── pages/SpectatorPage.tsx
+├── pages/AuditPage.tsx
+├── pages/BansPage.tsx
+├── components/SpectatorCanvas.tsx
+├── components/PlayerActionsMenu.tsx
+├── components/ServerVariablesForm.tsx
+├── net/admin-connection.ts
+└── state/spectator-store.ts
 ```
 
 `SpectatorCanvas` attaches the Canvas renderer with a ref/effect; clean up sockets,
 listeners, and animation frames on unmount and React development effect re-runs.
 Delta state lives in a bounded non-React store; only selection, connection status,
 and coarse metrics enter React state. Draw imperatively through
-`shared/render/canvas.js`, extracted from planned `client/src/render/canvas.js`;
+`shared/render/canvas.ts`, extracted from planned `client/src/render/canvas.ts`;
 the player wrapper retains its camera/input policy. Admin aggregate records
 adapt to the renderer; they do not change the player simulation.
 Use React's built-in state/effects first; routing/state-library choices stay open.

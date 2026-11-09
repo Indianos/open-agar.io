@@ -24,8 +24,8 @@ derived: `radius(m) = RADIUS_SCALE * sqrt(m)`. No separate mutable radius exists
 
 Status: Planned
 
-Planned `shared/constants.js` owns these unmeasured defaults. A managed server
-copies validated preset overrides through `shared/server-config.js`; the exposed
+Planned `shared/constants.ts` owns these unmeasured defaults. A managed server
+copies validated preset overrides through `shared/server-config.ts`; the exposed
 fields, ranges, and live-versus-restart rules belong to
 [ADMIN.md](ADMIN.md#create-server-variables). Mechanics read instance config,
 never a mutable shared global. Network/security/operational limits belong to their

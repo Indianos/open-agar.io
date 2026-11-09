@@ -1,4 +1,4 @@
-export function createRandom(seed) {
+export function createRandom(seed: number): () => number {
   if (!Number.isInteger(seed) || seed < 0 || seed > 0xffff_ffff) {
     throw new RangeError('seed must be an unsigned 32-bit integer');
   }

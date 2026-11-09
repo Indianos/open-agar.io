@@ -7,25 +7,33 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev:server": "node --env-file=.env --watch server/index.js",
-    "dev:client": "vite --config client/vite.config.js",
-    "build": "vite build --config client/vite.config.js",
-    "start": "node server/index.js",
-    "test": "node --test",
-    "test:watch": "node --test --watch",
-    "lint": "eslint server shared client/src client/vite.config.js",
-    "format:check": "prettier --check server shared client package.json eslint.config.js",
-    "format": "prettier --write server shared client package.json eslint.config.js"
+    "dev:server": "node --env-file=.env --watch --import tsx server/index.ts",
+    "dev:client": "vite --config client/vite.config.ts",
+    "build": "npm run build:server && npm run build:client",
+    "build:server": "tsc -p tsconfig.build.json",
+    "build:client": "vite build --config client/vite.config.ts",
+    "start": "node build/server/index.js",
+    "test": "tsx --test tests/*.test.ts",
+    "test:watch": "tsx --test --watch tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint server shared client/src client/vite.config.ts tests eslint.config.ts",
+    "format:check": "prettier --check server shared client tests package.json eslint.config.ts tsconfig*.json",
+    "format": "prettier --write server shared client tests package.json eslint.config.ts tsconfig*.json"
   },
   "dependencies": {
-    "argon2": "0.45.1",
     "fastify": "5.12.7",
     "ws": "8.22.0"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@types/node": "24.19.2",
+    "@types/ws": "8.18.1",
     "eslint": "10.13.0",
+    "jiti": "2.6.1",
     "prettier": "3.9.10",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.72.1",
     "vite": "8.3.4"
   },
   "overrides": {

@@ -39,9 +39,9 @@ last arbitrary message. Tick is a u32 simulation step counter; compare modulo
 measure differences only over intervals below 2^31 ms. Never compare client and
 server clock origins directly.
 
-Define these transport bounds in planned `shared/protocol.js` (sizes include the
+Define these transport bounds in planned `shared/protocol.ts` (sizes include the
 8-byte header). Encoders must assert them before sending; decoders must check them
-before allocating. Add boundary fixtures for each in `shared/protocol.test.js`.
+before allocating. Add boundary fixtures for each in `tests/protocol.test.ts`.
 `ws.maxPayload` enforces the client limit on the server; the browser connection
 handler enforces the server limit on receipt.
 
@@ -320,7 +320,7 @@ closes the socket. Serialize AUTH validation before processing the first VIEWPOR
 
 Use little-endian fields and finite floats, strict lengths and modular nonzero
 sequences as in the player codec, but a **different 16-byte header** and codec
-`shared/admin-protocol.js`. Reject unused/reserved bits, invalid UUID bytes,
+`shared/admin-protocol.ts`. Reject unused/reserved bits, invalid UUID bytes,
 duplicate batch parts, and unrecognized actions.
 
 | Header offset | Field | Type | Rule |
@@ -484,7 +484,7 @@ Unavailable clears follow; samples for stale generations or a no-longer-selected
 player are ignored. This is bounded
 selected-target metadata, not an uncropped entity feed or gameplay command.
 
-Admin caps in `shared/admin-protocol.js`: inbound 4096 bytes, outbound 61440 bytes,
+Admin caps in `shared/admin-protocol.ts`: inbound 4096 bytes, outbound 61440 bytes,
 6000 records/subscription, 8 parts/batch, one subscription/socket, two sockets/admin.
 Maximum snapshot part: `16 + 40 + 1800*32 = 57,656` bytes. Maximum delta part:
 `16 + 40 + 1600*36 = 57,656` bytes. Full 6000-record snapshot ≈188 KiB.

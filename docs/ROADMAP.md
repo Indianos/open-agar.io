@@ -14,10 +14,10 @@ Status: In progress
 
 - [x] Resolve baseline library/SQLite decisions; scaffold [DEVELOPMENT.md](DEVELOPMENT.md).
 - [x] Add Node.js 24 scripts, root lockfile, config validation, lint/format checks.
-- [ ] Implement seeded 30 Hz arena with food, movement, bounds, and spatial hash.
-- [ ] Implement v1 HELLO/WELCOME/INPUT/full snapshot codec and anonymous tickets.
-- [ ] Render two desktop clients, pointer steering, camera, interpolation.
-- [ ] Add unit/protocol tests and a repeatable two-tab smoke procedure.
+- [ ] Complete seeded 30 Hz arena with bounded spatial index and load test.
+- [x] Implement v1 HELLO/WELCOME/INPUT/full snapshot codec and anonymous tickets.
+- [x] Render desktop clients, pointer steering, camera, and interpolation.
+- [ ] Add protocol tests and a repeatable two-tab smoke procedure in `/tests`.
 
 **Definition of done:** clean install on Node.js 24; documented commands run;
 two anonymous desktop browsers see server-controlled movement/food consumption

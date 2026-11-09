@@ -1,26 +1,130 @@
 :root {
-  color: #f3f6f8;
-  background: #101820;
-  font-family: system-ui, sans-serif;
+  color: #eef4f7;
+  background: #10191f;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
 
-body {
-  display: grid;
-  min-height: 100vh;
-  margin: 0;
-  place-items: center;
+* {
+  box-sizing: border-box;
 }
 
-main {
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+#game {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+#hud {
+  position: fixed;
+  top: 18px;
+  left: 18px;
+  display: grid;
+  gap: 5px;
+  min-width: 154px;
+  padding: 12px 15px;
+  border: 1px solid rgb(217 237 246 / 12%);
+  border-radius: 12px;
+  background: rgb(12 22 28 / 78%);
+  backdrop-filter: blur(12px);
+  font-size: 13px;
+}
+
+#hud strong {
+  color: #89efbb;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+}
+
+#score {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+#connection {
+  color: #9aaeb8;
+}
+
+.panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: min(440px, calc(100vw - 36px));
+  padding: 34px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgb(217 237 246 / 14%);
+  border-radius: 20px;
+  background: rgb(14 25 32 / 94%);
+  box-shadow: 0 24px 80px rgb(0 0 0 / 35%);
   text-align: center;
+  backdrop-filter: blur(18px);
+}
+
+.panel.hidden {
+  display: none;
+}
+
+.eyebrow {
+  color: #89efbb;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
 }
 
 h1 {
-  margin-bottom: 0.5rem;
+  margin: 14px 0 10px;
+  font-size: clamp(26px, 6vw, 36px);
+  letter-spacing: -0.04em;
 }
 
-p {
-  color: #b7c3ca;
+.panel > p:not(.eyebrow) {
+  color: #a9bac2;
+  line-height: 1.55;
+}
+
+button {
+  width: 100%;
+  min-height: 48px;
+  margin: 16px 0 4px;
+  border: 0;
+  border-radius: 10px;
+  background: #89efbb;
+  color: #10251c;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #a5f5cb;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+#status {
+  min-height: 20px;
+  color: #8ea1aa;
+  font-size: 12px;
 }

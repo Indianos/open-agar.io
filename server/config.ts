@@ -1,6 +1,17 @@
 import process from 'node:process';
 import { URL } from 'node:url';
 
+export type RuntimeConfig = {
+  nodeEnv: 'development' | 'test' | 'production';
+  host: string;
+  port: number;
+  publicOrigin: string;
+  allowedOrigins: readonly string[];
+  sqlitePath: string;
+  arenaId: string;
+  logLevel: 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent';
+};
+
 const DEFAULTS = Object.freeze({
   NODE_ENV: 'development',
   HOST: '127.0.0.1',
@@ -21,8 +32,17 @@ const LOG_LEVELS = new Set([
   'trace',
   'silent',
 ]);
+const NODE_ENVS = new Set(['development', 'test', 'production']);
 
-function parseOrigin(value, name) {
+function isNodeEnv(value: string): value is RuntimeConfig['nodeEnv'] {
+  return NODE_ENVS.has(value);
+}
+
+function isLogLevel(value: string): value is RuntimeConfig['logLevel'] {
+  return LOG_LEVELS.has(value);
+}
+
+function parseOrigin(value: string, name: string): string {
   let parsed;
   try {
     parsed = new URL(value);
@@ -40,7 +60,7 @@ function parseOrigin(value, name) {
   return parsed.origin;
 }
 
-function parsePort(value) {
+function parsePort(value: string): number {
   if (!/^\d+$/.test(value)) {
     throw new Error('PORT must be an integer from 1 to 65535');
   }
@@ -51,9 +71,20 @@ function parsePort(value) {
   return port;
 }
 
-export function loadConfig(env = process.env) {
-  const values = { ...DEFAULTS, ...env };
-  if (!['development', 'test', 'production'].includes(values.NODE_ENV)) {
+export function loadConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): RuntimeConfig {
+  const values = {
+    NODE_ENV: env.NODE_ENV ?? DEFAULTS.NODE_ENV,
+    HOST: env.HOST ?? DEFAULTS.HOST,
+    PORT: env.PORT ?? DEFAULTS.PORT,
+    PUBLIC_ORIGIN: env.PUBLIC_ORIGIN ?? DEFAULTS.PUBLIC_ORIGIN,
+    ALLOWED_ORIGINS: env.ALLOWED_ORIGINS ?? DEFAULTS.ALLOWED_ORIGINS,
+    SQLITE_PATH: env.SQLITE_PATH ?? DEFAULTS.SQLITE_PATH,
+    ARENA_ID: env.ARENA_ID ?? DEFAULTS.ARENA_ID,
+    LOG_LEVEL: env.LOG_LEVEL ?? DEFAULTS.LOG_LEVEL,
+  };
+  if (!isNodeEnv(values.NODE_ENV)) {
     throw new Error('NODE_ENV must be development, test, or production');
   }
   if (!values.HOST.trim()) throw new Error('HOST must not be empty');
@@ -80,7 +111,7 @@ export function loadConfig(env = process.env) {
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/.test(values.ARENA_ID)) {
     throw new Error('ARENA_ID must be 1-64 safe ASCII characters');
   }
-  if (!LOG_LEVELS.has(values.LOG_LEVEL)) {
+  if (!isLogLevel(values.LOG_LEVEL)) {
     throw new Error(`LOG_LEVEL must be one of: ${[...LOG_LEVELS].join(', ')}`);
   }
   return Object.freeze({

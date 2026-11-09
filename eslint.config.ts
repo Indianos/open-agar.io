@@ -1,14 +1,15 @@
 import js from '@eslint/js';
+import tseslint, { type FlatConfig } from 'typescript-eslint';
 
-export default [
-  { ignores: ['client/dist/**', 'coverage/**', 'db/data/**'] },
-  js.configs.recommended,
+const config: FlatConfig.Config[] = [
+  { ignores: ['build/**', 'client/dist/**', 'coverage/**', 'db/data/**'] },
   {
     files: ['**/*.js'],
-    languageOptions: { ecmaVersion: 2025, sourceType: 'module' },
+    ...js.configs.recommended,
   },
+  ...tseslint.configs.recommended,
   {
-    files: ['client/src/**/*.js'],
+    files: ['client/src/**/*.ts'],
     languageOptions: {
       globals: {
         window: 'readonly',
@@ -29,3 +30,5 @@ export default [
     },
   },
 ];
+
+export default config;

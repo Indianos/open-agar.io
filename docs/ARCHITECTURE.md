@@ -15,7 +15,7 @@ IPC. Before ACP, the standalone game owns the same DB worker directly.
 ```mermaid
 flowchart LR
   P[Desktop input adapter / later touch adapter] --> I[Device-independent intent]
-  I --> C[Vanilla JS client / Canvas]
+  I --> C[TypeScript client / Canvas]
   C -->|HTTPS: accounts, tickets, results| N[Nginx TLS]
   C -->|WSS: intent and snapshots| N
   N --> RT[Public registry router / control port 3000]
@@ -44,25 +44,25 @@ flowchart LR
 
 | Planned path/component | Responsibility | Must not do |
 | --- | --- | --- |
-| `server/index.js` | Config, HTTP, upgrade routing, shutdown | Embed mechanics in routes |
-| `server/http/routes.js` | [REST contracts](API.md), session/ticket checks | Accept client-written results |
-| `server/net/gateway.js` | Authenticate upgrades/HELLO, decode, quotas, culling | Trust client positions or mass |
-| `server/sim/arena.js` | Single owner of mutable arena state | Perform I/O in ticks |
-| `server/sim/worker.js` | Worker message lifecycle and bounded queues | Share mutable entity objects |
-| `server/db/worker.js` | Own SQLite connection; process persistence jobs | Block simulation for SQL |
-| `server/db/repository.js` | Parameterized storage interface | Leak dialect details into mechanics |
+| `server/index.ts` | Config, HTTP, upgrade routing, shutdown | Embed mechanics in routes |
+| `server/http/routes.ts` | [REST contracts](API.md), session/ticket checks | Accept client-written results |
+| `server/net/gateway.ts` | Authenticate upgrades/HELLO, decode, quotas, culling | Trust client positions or mass |
+| `server/sim/arena.ts` | Single owner of mutable arena state | Perform I/O in ticks |
+| `server/sim/worker.ts` | Worker message lifecycle and bounded queues | Share mutable entity objects |
+| `server/db/worker.ts` | Own SQLite connection; process persistence jobs | Block simulation for SQL |
+| `server/db/repository.ts` | Parameterized storage interface | Leak dialect details into mechanics |
 | `client/src/input/` | Pointer, keyboard, later touch → normalized intent | Decide hit/eat outcomes |
 | `client/src/net/` | Protocol, snapshot buffer, reconnect state machine | Persist auth/resume secrets |
 | `client/src/render/` | Camera, Canvas, interpolation, HUD | Advance authoritative gameplay |
-| `shared/constants.js`, `shared/protocol.js` | Pure constants, codecs, schema version | Import Node-only APIs in browser code |
+| `shared/constants.ts`, `shared/protocol.ts` | Pure constants, codecs, schema version | Import Node-only APIs in browser code |
 | `db/migrations/` | Ordered immutable schema changes | Store live arena positions |
-| `control/index.js`, `control/http/routes.js` | Admin API, auth, audit, static ACP | Accept player sessions as admin credentials |
+| `control/index.ts`, `control/http/routes.ts` | Admin API, auth, audit, static ACP | Accept player sessions as admin credentials |
 | `control/router.js` | Separate public listener; registry-only player routing | Expose admin API through player-origin routes |
 | `control/process-manager.js`, `control/ipc.js` | Fork lifecycle, health, validated IPC | Execute shell commands supplied by admin forms |
 | `control/net/spectator.js` | Separate admin WS, viewport subscriptions/deltas | Reuse player opcodes or authorize in the browser |
 | `admin/src/` | React pages/forms plus imperative Canvas wrapper | Render every entity through React |
-| `shared/admin-protocol.js`, `shared/server-config.js` | Separate admin codecs; validated preset schema | Embed credentials or server-only dependencies |
-| `shared/render/canvas.js` | Renderer shared by player and spectator adapters | Own input, authorization, or simulation |
+| `shared/admin-protocol.ts`, `shared/server-config.ts` | Separate admin codecs; validated preset schema | Embed credentials or server-only dependencies |
+| `shared/render/canvas.ts` | Renderer shared by player and spectator adapters | Own input, authorization, or simulation |
 
 ## Data flow and authority
 
@@ -125,7 +125,7 @@ See [NETWORKING.md](NETWORKING.md) for rates and wire representation.
 
 Status: Planned
 
-`client/src/input/controller.js` exposes:
+`client/src/input/controller.ts` exposes:
 
 ```js
 // Planned interface, not an implemented module.
@@ -146,7 +146,7 @@ Status: Planned
 
 | ID | Proposed decision | Rationale / consequence |
 | --- | --- | --- |
-| ADR-001 | Node.js 24 ESM throughout | Shared JS mental model; built-in tests, no transpilation backend |
+| ADR-001 | Node.js 24 ESM and TypeScript throughout | Shared TypeScript mental model; built-in tests and explicit server compilation |
 | ADR-002 | `ws` + native browser WebSocket | Simple upgrade control; benchmark before adopting native uWebSockets.js |
 | ADR-003 | Fastify 5 | Schema validation/logging; Express remains an alternative, not a second server |
 | ADR-004 | One owner per arena, fixed tick rate from preset (30 Hz default) | Avoid races and client authority; changes to tick rate require restart |

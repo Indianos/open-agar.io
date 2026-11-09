@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createRandom } from './random.js';
+import { createRandom } from '../shared/random.js';
 
 test('seeded random generators produce the same sequence', () => {
   const first = createRandom(123);
