@@ -20,7 +20,7 @@ added by this phase. Client timers use negotiated preset `tickHz`, not hardcoded
 
 Status: Planned
 
-Planned `client/src/input/touch.js` implements the same `readIntent/reset` contract
+Planned `client/src/input/touch.ts` implements the same `readIntent/reset` contract
 as pointer/keyboard. Proposed defaults:
 
 | Planned control/layout | Starting value / behavior |

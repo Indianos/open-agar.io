@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101820" />
+    <title>open-agar.io</title>
+  </head>
+  <body>
+    <main id="app">
+      <canvas id="game" aria-label="Game arena"></canvas>
+      <section id="join-panel" class="panel">
+        <p class="eyebrow">OPEN AGAR</p>
+        <h1>Grow. Don't get eaten.</h1>
+        <p>
+          Steer with your pointer. Eat the green cells. Avoid larger players.
+        </p>
+        <button id="play" type="button">Play as guest</button>
+        <p id="status" role="status">Connecting to arena…</p>
+      </section>
+      <div id="hud" aria-live="polite">
+        <strong>OPEN AGAR</strong>
+        <span id="score">Mass 20</span>
+        <span id="connection">Not connected</span>
+      </div>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

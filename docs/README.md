@@ -2,13 +2,12 @@
 
 Status: Planned
 
-This is a greenfield design, not a playable release. The repository originally
-contained only a title in the root README. No server, client, database, scripts,
-tests, or infrastructure are implemented. All features, endpoints, dependencies,
-commands, configuration examples, and application paths in this documentation are
-**Planned**, including paths shown without repeating that label. Documentation
-files exist as specifications; their Status lines track implementation readiness,
-not whether the prose has been written.
+This is a greenfield project under implementation, not a playable release. The
+initial Node.js tooling, validated configuration, deterministic arena foundation,
+and static client shell are implemented. Player networking, Canvas gameplay,
+database, and infrastructure remain planned. Documentation files specify the
+target; their Status lines track implementation readiness, not whether the prose
+has been written.
 
 ## Vision and scope
 
@@ -42,10 +41,10 @@ Status: Planned
 | Layer | Proposed choice | Reason |
 | --- | --- | --- |
 | Runtime | Node.js 24 LTS; `engines.node: ">=24"` | One runtime, native ESM, test runner, workers |
-| Simulation/transport | Plain JavaScript + `ws` 8 | Fixed preset tick rate, 30 Hz default |
+| Simulation/transport | TypeScript + `ws` 8 | Fixed preset tick rate, 30 Hz default |
 | HTTP/API | Fastify 5 | JSON Schema validation and structured logging |
 | Persistence | `node:sqlite` initially; `pg` 8/Postgres later | Low setup cost, explicit migration boundary |
-| Player browser | Vanilla JS, HTML5 Canvas, Vite 8 | Input adapters isolate devices |
+| Player browser | TypeScript, HTML5 Canvas, Vite 8 | Input adapters isolate devices |
 | ACP browser | React + Vite; shared imperative Canvas | Forms/menus in React, viewport deltas and LOD for live map |
 | Control backend | Node.js control API/process manager, private IPC | Separate admin auth; spawns managed game processes |
 | Auth | `argon2` package + opaque cookie sessions | Password hashing and revocable sessions |
@@ -65,18 +64,21 @@ protocols/authentication stay separate; see [ADMIN.md](ADMIN.md).
 
 Status: Planned
 
-**Not runnable against this documentation-only repository.** First follow
-[setup from scratch](DEVELOPMENT.md#setup-from-scratch), then implement the named
-entry points/configuration. Once those files exist:
+The initial TypeScript desktop MVP runs locally with guest play, pointer
+steering, food, and authoritative multiplayer snapshots. On Node.js 24 or newer:
 
 ```sh
 npm ci
-npm run db:migrate
+npm test
+npm run typecheck
+npm run build
 ```
 
-Run in two terminals:
+Copy `.env.example` to `.env`, then run the server and client in separate
+terminals:
 
 ```sh
+cp .env.example .env
 npm run dev:server
 ```
 
@@ -84,16 +86,9 @@ npm run dev:server
 npm run dev:client
 ```
 
-Open `http://localhost:5173`; Vite will proxy `/api` and `/ws` to
-`http://127.0.0.1:3000`. For production-style local verification:
-
-```sh
-npm run build
-npm start
-```
-
-Open `http://localhost:3000`. The production server must serve `client/dist`;
-`vite preview` is not the production server.
+Open the Vite URL in two desktop tabs, select **Play as guest**, and steer with
+the pointer. Accounts, resume/reconnect, mobile, and production readiness remain
+out of scope.
 
 ## Documentation map
 

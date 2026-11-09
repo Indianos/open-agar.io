@@ -1,14 +1,14 @@
 # Development guide
 
-Status: Planned
+Status: In progress
 
 ## Scope and verified runtime baseline
 
 Status: Planned
 
-These are implementation instructions, **not commands that work against the
-current documentation-only repository**. All application/config/test files below
-are planned. Use a current patched **Node.js 24 LTS**; keep the requested
+The initial Node project, TypeScript tooling, configuration, client shell, and
+arena simulation are implemented; network play and most planned paths remain
+unfinished. Use a current patched **Node.js 24 LTS**; keep the requested
 `"engines": {"node": ">=24"}` and test/deploy on 24. A permissive engines range
 does not promise that every future Node major has been tested.
 
@@ -37,15 +37,16 @@ Status: Planned
 
 These exact versions were checked in published metadata and official source
 manifests; they are a reproducible starting proposal, not a claim of perpetual
-security or latest versions. Recheck advisories when implementing and commit the
-generated root lockfile. No dependencies are installed by this documentation PR.
+security or latest versions. The root manifest and lockfile use these versions.
+Recheck advisories when updating dependencies.
 
 | Package | Proposed exact version | Official source / compatibility |
 | --- | --- | --- |
 | `fastify` | 5.12.7 | [Manifest](https://github.com/fastify/fastify/blob/v5.12.7/package.json), [LTS policy](https://github.com/fastify/fastify/blob/main/docs/Reference/LTS.md); v5 supports Node 24 |
 | `ws` | 8.22.0 | [Manifest](https://github.com/websockets/ws/blob/8.22.0/package.json), [usage](https://github.com/websockets/ws#usage-examples); browser uses native WebSocket |
-| `argon2` | 0.45.1 | [Manifest](https://github.com/ranisalt/node-argon2/blob/v0.45.1/package.json), [install/prebuilds](https://github.com/ranisalt/node-argon2#prebuilt-binaries); native addon, test target platform |
 | `vite` | 8.3.4 | [Manifest](https://github.com/vitejs/vite/blob/v8.3.4/packages/vite/package.json); Node `^20.19.0 \|\| >=22.12.0` includes 24 |
+| `typescript` | 5.9.3 | Strict type-checking and server compilation |
+| `tsx` | 4.23.15 | TypeScript execution for development and Node's built-in test runner |
 | `create-vite` | 9.2.1 | [Vanilla template](https://github.com/vitejs/vite/tree/create-vite%409.2.1/packages/create-vite/template-vanilla); scaffolds Vite 8, tool version need not equal Vite major |
 | `eslint` / `@eslint/js` | 10.13.0 / 10.0.1 | [ESLint](https://github.com/eslint/eslint/blob/v10.13.0/package.json), [JS config](https://github.com/eslint/eslint/blob/v10.13.0/packages/js/package.json); compatible v10 peer range |
 | `prettier` | 3.9.10 | [Manifest](https://github.com/prettier/prettier/blob/3.9.10/package.json) |
@@ -55,6 +56,9 @@ Fastify 5 requires full JSON schemas including `type`:
 [v5 migration guide](https://github.com/fastify/fastify/blob/main/docs/Guides/Migration-Guide-V5.md).
 ESLint 10 requires flat config, not `.eslintrc`:
 [v10 migration guide](https://github.com/eslint/eslint/blob/v10.13.0/docs/src/use/migrate-to-10.0.0.md).
+The root manifest overrides ESLint's vulnerable `minimatch` dependency to
+11.0.5; retain that override until upstream dependency ranges include a patched
+version, and verify lint plus `npm audit` when updating.
 Do not copy old Vite internals: Vite 8 uses Rolldown/Oxc
 ([migration guide](https://github.com/vitejs/vite/blob/v8.3.4/docs/guide/migration.md)).
 
@@ -74,8 +78,9 @@ cd open-agar.io
 git init
 ```
 
-If already in this cloned repository, **skip those three commands**. In either
-case, perform the following only once during phase 1:
+If already in this cloned repository, **skip those three commands**. The initial
+scaffold has been created here; the following is retained as a reference and
+should only be used when creating a fresh project:
 
 ```sh
 node --version
@@ -84,14 +89,17 @@ npm init -y
 npm pkg set name=open-agar.io type=module
 npm pkg set private=true --json
 npm pkg set 'engines.node=>=24'
-mkdir -p server/http server/net server/sim server/db server/tests \
+mkdir -p server/http server/net server/sim server/db tests \
   shared db/migrations db/data docs deploy
 npm create --yes vite@9.2.1 client -- --template vanilla --no-interactive --no-immediate
 rm client/package.json
+mv client/src/main.js client/src/main.ts
+sed -i 's|/src/main.js|/src/main.ts|' client/index.html
 mkdir -p client/src/input client/src/net client/src/render
-npm install --save-exact fastify@5.12.7 ws@8.22.0 argon2@0.45.1
+npm install --save-exact fastify@5.12.7 ws@8.22.0
 npm install --save-dev --save-exact vite@8.3.4 eslint@10.13.0 \
-  @eslint/js@10.0.1 prettier@3.9.10
+  @eslint/js@10.0.1 prettier@3.9.10 typescript@5.9.3 \
+  typescript-eslint@8.72.1 tsx@4.23.15 @types/node@24.19.2 jiti@2.6.1
 ```
 
 The [create-vite CLI flags](https://github.com/vitejs/vite/blob/create-vite%409.2.1/packages/create-vite/src/index.ts)
@@ -100,8 +108,8 @@ accepts downloading the initializer.
 `rm client/package.json` removes **only the fresh scaffold's manifest** so there
 is one root dependency graph/lockfile. Do not run it against an independently
 developed client project. Do not run `npm install` inside `client`. Keep the
-scaffold's `index.html`, `src/main.js`, CSS, and public assets as the starting UI;
-replace demo content as the Canvas client is written.
+scaffold's `index.html`, CSS, and public assets as the starting UI; use
+`src/main.ts` and `vite.config.ts` for TypeScript browser code/configuration.
 
 Merge the following scripts and fields into the generated root `package.json`
 (remove `npm init`'s placeholder test script). The resulting minimal manifest is:
@@ -114,26 +122,30 @@ Merge the following scripts and fields into the generated root `package.json`
   "type": "module",
   "engines": {"node": ">=24"},
   "scripts": {
-    "dev:server": "node --env-file=.env --watch server/index.js",
-    "dev:client": "vite --config client/vite.config.js",
-    "build": "vite build --config client/vite.config.js",
-    "start": "node server/index.js",
-    "db:migrate": "node --env-file-if-exists=.env server/db/migrate.js",
-    "test": "node --test",
-    "test:watch": "node --test --watch",
-    "lint": "eslint server shared client/src client/vite.config.js",
-    "format:check": "prettier --check .",
-    "format": "prettier --write ."
+    "dev:server": "node --env-file=.env --watch --import tsx server/index.ts",
+    "dev:client": "vite --config client/vite.config.ts",
+    "build": "npm run build:server && npm run build:client",
+    "build:server": "tsc -p tsconfig.build.json",
+    "build:client": "vite build --config client/vite.config.ts",
+    "start": "node build/server/index.js",
+    "test": "tsx --test tests/*.test.ts",
+    "test:watch": "tsx --test --watch tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint server shared client/src client/vite.config.ts tests eslint.config.ts"
   },
   "dependencies": {
-    "argon2": "0.45.1",
     "fastify": "5.12.7",
     "ws": "8.22.0"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@types/node": "24.19.2",
     "eslint": "10.13.0",
+    "jiti": "2.6.1",
     "prettier": "3.9.10",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.72.1",
     "vite": "8.3.4"
   }
 }
@@ -147,8 +159,9 @@ runner, backend transpiler, or workspace configuration is required.
 
 Status: Planned
 
-Every application path below is planned; `docs/` contains the blueprint files
-listed in [README.md](README.md). Tests are colocated except integration tests.
+The tree lists both implemented foundation files and planned follow-on paths;
+`docs/` contains the blueprint files listed in [README.md](README.md). Keep all
+tests in the top-level `/tests` directory, separate from application code.
 
 ```text
 open-agar.io/
@@ -157,60 +170,66 @@ open-agar.io/
 ├── .env.example
 ├── .gitignore
 ├── .prettierignore
-├── eslint.config.js
+├── eslint.config.ts
+├── tsconfig.json
+├── tsconfig.build.json
 ├── Dockerfile
 ├── .dockerignore
 ├── server/
-│   ├── index.js
-│   ├── config.js
-│   ├── http/routes.js
-│   ├── net/gateway.js
-│   ├── sim/arena.js
-│   ├── sim/arena.test.js
-│   ├── sim/worker.js
-│   ├── db/worker.js
-│   ├── db/repository.js
-│   ├── db/migrate.js
-│   └── tests/http.test.js
+│   ├── index.ts
+│   ├── config.ts
+│   ├── http/routes.ts
+│   ├── net/gateway.ts
+│   ├── sim/arena.ts
+│   ├── sim/worker.ts
+│   ├── db/worker.ts
+│   ├── db/repository.ts
+│   └── db/migrate.ts
 ├── client/
 │   ├── index.html
-│   ├── vite.config.js
+│   ├── vite.config.ts
 │   ├── public/
 │   └── src/
-│       ├── main.js
+│       ├── main.ts
 │       ├── style.css
-│       ├── input/controller.js
-│       ├── input/pointer.js
-│       ├── input/keyboard.js
-│       ├── input/touch.js          (phase 6)
-│       ├── net/connection.js
-│       └── render/canvas.js
+│       ├── input/controller.ts
+│       ├── input/pointer.ts
+│       ├── input/keyboard.ts
+│       ├── input/touch.ts          (phase 6)
+│       ├── net/connection.ts
+│       └── render/canvas.ts
 ├── admin/
 │   ├── index.html
-│   ├── vite.config.js
+│   ├── vite.config.ts
 │   └── src/                       (React pages/components listed in ADMIN.md)
-│       ├── main.jsx
-│       ├── App.jsx
-│       ├── components/SpectatorCanvas.jsx
-│       ├── net/admin-connection.js
-│       └── state/spectator-store.js
+│       ├── main.tsx
+│       ├── App.tsx
+│       ├── components/SpectatorCanvas.tsx
+│       ├── net/admin-connection.ts
+│       └── state/spectator-store.ts
 ├── control/
-│   ├── index.js
-│   ├── router.js
-│   ├── process-manager.js
-│   ├── ipc.js
-│   ├── http/routes.js
-│   ├── net/spectator.js
-│   ├── tests/admin.test.js
-│   └── tests/game-fixture.js
+│   ├── index.ts
+│   ├── router.ts
+│   ├── process-manager.ts
+│   ├── ipc.ts
+│   ├── http/routes.ts
+│   └── net/spectator.ts
 ├── shared/
-│   ├── constants.js
-│   ├── protocol.js
-│   ├── protocol.test.js
-│   ├── server-config.js
-│   ├── admin-protocol.js
-│   ├── admin-protocol.test.js
-│   └── render/canvas.js
+│   ├── constants.ts
+│   ├── protocol.ts
+│   ├── server-config.ts
+│   ├── admin-protocol.ts
+│   └── render/canvas.ts
+├── tests/
+│   ├── arena.test.ts
+│   ├── config.test.ts
+│   ├── random.test.ts
+│   ├── http.test.ts
+│   ├── protocol.test.ts
+│   ├── admin.test.ts
+│   ├── admin-protocol.test.ts
+│   └── fixtures/
+│       └── game.ts
 ├── db/
 │   ├── migrations/001_initial.sql
 │   ├── migrations/002_admin.sql
@@ -241,7 +260,7 @@ Then `cp .env.example .env`. `.env` is required by `dev:server`; production
 `start` deliberately relies on injected environment. `db:migrate` optionally
 loads `.env`; do not ship that file inside the image.
 
-Create planned `client/vite.config.js`:
+Create planned `client/vite.config.ts`:
 
 ```js
 import { defineConfig } from 'vite';
@@ -264,7 +283,7 @@ export default defineConfig({
 
 Vite resolves `shared/` imports from the root project; keep them browser-safe.
 Preserve the browser Origin through the proxy so local checks match production.
-Production `server/index.js` serves `client/dist` with safe static routing and
+Production `server/index.ts` serves `client/dist` with safe static routing and
 hosts HTTP and WSS upgrades on port 3000. Unknown `/api` or `/ws` paths return
 errors, not the HTML fallback.
 
@@ -291,27 +310,29 @@ Planned `.prettierignore` should contain `node_modules/`, `client/dist/`, `admin
 
 Status: Planned
 
-Use ESM, explicit imports, camelCase values, PascalCase classes, UPPER_SNAKE_CASE
+Use TypeScript ESM, explicit imports, camelCase values, PascalCase classes, UPPER_SNAKE_CASE
 constants, named exports for shared utilities, and JSDoc for public boundaries.
 Simulation functions receive `dt`, clock, and seeded PRNG; avoid global time/random.
 Do not import server code into the client. Use seconds in mechanics, milliseconds
 for wall clocks, explicit suffixes at boundaries.
 
-Start planned `eslint.config.js` with this flat config, adding browser globals
+Start planned `eslint.config.ts` with this flat config, adding browser globals
 only when actually used (never disable `no-undef` globally):
 
 ```js
 import js from '@eslint/js';
+import tseslint from 'typescript-eslint';
 
 export default [
-  { ignores: ['client/dist/**', 'coverage/**', 'db/data/**'] },
+  { ignores: ['build/**', 'client/dist/**', 'coverage/**', 'db/data/**'] },
   js.configs.recommended,
+  ...tseslint.configs.recommended,
   {
-    files: ['**/*.js'],
+    files: ['**/*.ts'],
     languageOptions: { ecmaVersion: 2025, sourceType: 'module' }
   },
   {
-    files: ['client/src/**/*.js'],
+    files: ['client/src/**/*.ts'],
     languageOptions: {
       globals: {
         window: 'readonly', document: 'readonly', navigator: 'readonly',
@@ -330,7 +351,8 @@ Import Node globals explicitly (`node:process`, `node:buffer`, `node:timers`,
 `node:perf_hooks`, etc.) in server modules. Keep shared code limited to standard
 ECMAScript built-ins such as DataView; inject time/network behavior.
 Use Prettier for formatting and ESLint for correctness, not competing style rules.
-No backend language besides JavaScript is planned.
+Use TypeScript for application and test code; keep browser presentation in
+HTML/CSS and configuration in JSON where those formats are appropriate.
 
 Small feature branches and PRs: update owning docs/status, add focused tests, run
 targeted checks first, then full checks once complete. Commit root lockfile, never
@@ -341,8 +363,9 @@ and changed-file list before review.
 
 Status: Planned
 
-No tests/test tooling currently exist; add tests alongside implementation rather
-than tests that merely assert that documentation contains words.
+Tests live in the top-level `/tests` directory, separate from application code.
+Use TypeScript tests with Node's built-in `node:test` and `node:assert/strict`,
+executed through `tsx`.
 
 | Level | Planned coverage / method |
 | --- | --- |
@@ -354,20 +377,21 @@ than tests that merely assert that documentation contains words.
 | Worker integration | Real worker lifecycle, bounded queues, crash/shutdown and result acknowledgment |
 | WS integration | `ws` client, ephemeral local port; handshake, replay, partial snapshots, resume races |
 | Browser/manual | Two tabs eat/split/eject; resize, DPR, hidden-tab reset, slow network, reconnect |
-| Load/performance | Planned `server/tests/load.js`; seeded bot clients, capped duration, reports outside source tree |
+| Load/performance | Planned `tests/load.ts`; seeded bot clients, capped duration, reports outside source tree |
 
 Once these files exist, run focused tests, then completion checks:
 
 ```sh
-node --test shared/protocol.test.js
-node --test server/sim/arena.test.js
-node --test server/tests/http.test.js
+npm test
+npm run typecheck
 npm run lint
 npm run format:check
-npm test
 npm run build
 git diff --check
 ```
+
+`format:check` covers application source and configuration; existing blueprint
+Markdown is preserved in its authored formatting.
 
 CI should later run those checks on Node.js 24 and build the Docker image; no CI
 workflow is delivered by this design-only task. Never treat a zero-test run as
@@ -383,9 +407,9 @@ profile a realistic load before choosing a new transport or serialization scheme
 After entry points exist, with environment injected:
 
 ```sh
-node --cpu-prof --cpu-prof-dir=/tmp server/index.js
-node --heap-prof --heap-prof-dir=/tmp server/index.js
-node --inspect=127.0.0.1:9229 server/index.js
+node --cpu-prof --cpu-prof-dir=/tmp --import tsx server/index.ts
+node --heap-prof --heap-prof-dir=/tmp --import tsx server/index.ts
+node --inspect=127.0.0.1:9229 --import tsx server/index.ts
 ```
 
 Profiles are per isolate: capture simulation/DB worker profiles as well as the
@@ -422,7 +446,7 @@ game acknowledgment. Use explicit message IDs, deadlines and bounded queues.
 Planned one-time ACP scaffolding at the project root (only if `admin/` is absent):
 
 ```sh
-mkdir -p control/http control/net control/tests shared/render
+mkdir -p control/http control/net tests/fixtures shared/render
 npm create --yes vite@9.2.1 admin -- --template react --no-interactive --no-immediate
 rm admin/package.json admin/eslint.config.js
 npm install --save-exact react@19.2.0 react-dom@19.2.0
@@ -430,7 +454,7 @@ npm install --save-dev --save-exact @vitejs/plugin-react@6.1.1
 ```
 
 Remove only the freshly generated nested manifest/lint config; keep/rework
-`admin/src/main.jsx`, `App.jsx`, CSS, and `index.html`. Do not install inside
+`admin/src/main.tsx`, `App.tsx`, CSS, and `index.html`. Do not install inside
 `admin`, and do not copy the template's extra dependency ranges into the root.
 Use the root lint policy extended for JSX below.
 
@@ -439,15 +463,15 @@ Merge these script updates into the existing manifest:
 ```json
 {
   "scripts": {
-    "dev:control": "node --env-file=.env --watch control/index.js",
-    "dev:admin": "vite --config admin/vite.config.js",
-    "build:client": "vite build --config client/vite.config.js",
-    "build:admin": "vite build --config admin/vite.config.js",
+    "dev:control": "node --env-file=.env --watch --import tsx control/index.ts",
+    "dev:admin": "vite --config admin/vite.config.ts",
+    "build:client": "vite build --config client/vite.config.ts",
+    "build:admin": "vite build --config admin/vite.config.ts",
     "build": "npm run build:client && npm run build:admin",
-    "start": "node control/index.js",
-    "start:standalone": "node server/index.js",
-    "lint": "eslint server control shared client/src admin/src client/vite.config.js admin/vite.config.js",
-    "test:admin": "node --test control/tests/admin.test.js shared/admin-protocol.test.js"
+    "start": "node build/control/index.js",
+    "start:standalone": "node build/server/index.js",
+    "lint": "eslint server control shared client/src admin/src tests",
+    "test:admin": "tsx --test tests/admin.test.ts tests/admin-protocol.test.ts"
   }
 }
 ```
@@ -459,7 +483,7 @@ development run `dev:control`, `dev:client`, and `dev:admin` in three terminals,
 apply migration 002 via `npm run db:migrate` before managed mode. Admin provisioning
 must be resolved without default passwords before login can be exercised.
 
-Planned `admin/vite.config.js`:
+Planned `admin/vite.config.ts`:
 
 ```js
 import { defineConfig } from 'vite';
@@ -488,9 +512,9 @@ on the separate admin origin. Shared Canvas imports must be browser-safe; separa
 connection stores/codecs prevent spectator delta state leaking into player code.
 Add `admin/dist/**` to root ESLint ignores and generated-output ignore files.
 Extend the existing browser-global block's `files` to
-`['client/src/**/*.js', 'admin/src/**/*.{js,jsx}']`, covering plain admin connection/
+`['client/src/**/*.ts', 'admin/src/**/*.{ts,tsx}']`, covering plain admin connection/
 store modules as well as components. Add a separate JSX flat-config block using
-`files: ['admin/src/**/*.jsx']`, parserOptions `ecmaFeatures: {jsx: true}`.
+`files: ['admin/src/**/*.tsx']`, parserOptions `ecmaFeatures: {jsx: true}`.
 The existing core `no-unused-vars` rule cannot recognize JSX-only component uses:
 scope `varsIgnorePattern: '^[A-Z]'` to that block, retaining other checks and
 explicit JSX imports. React-specific hook lint rules remain a future tool choice;
@@ -502,7 +526,7 @@ version conflicts, spawn-ready/failure/stop/restart, stale generations, metrics
 aging, idempotent command ACK/unknown outcomes, audit-before-dispatch, bans racing
 joins, and zero subprocess creation for invalid inputs. Use fixture child
 processes without production ports/secrets. Planned
-`control/tests/game-fixture.js` implements the minimal test IPC lifecycle,
+`tests/fixtures/game.ts` implements the minimal test IPC lifecycle,
 not a production launcher. Test admin codec golden bytes,
 viewport/LOD entry-exit diffs, multipart atomicity, contiguous revision chains,
 rapid pan, backpressure/reset, and generation change.

@@ -32,7 +32,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY client ./client
+COPY server ./server
 COPY shared ./shared
+COPY tsconfig.json tsconfig.build.json ./
 RUN npm run build && npm prune --omit=dev
 
 FROM node:24
@@ -41,13 +43,12 @@ WORKDIR /app
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/client/dist ./client/dist
 COPY --chown=node:node package.json package-lock.json ./
-COPY --chown=node:node server ./server
-COPY --chown=node:node shared ./shared
+COPY --from=build --chown=node:node /app/build ./build
 COPY --chown=node:node db/migrations ./db/migrations
 RUN mkdir -p /app/db/data && chown node:node /app/db/data
 USER node
 EXPOSE 3000
-CMD ["node", "server/index.js"]
+CMD ["node", "build/server/index.js"]
 ```
 
 Planned `.dockerignore`:
@@ -82,7 +83,7 @@ docker volume create agar-data
 docker run --rm --user root -v agar-data:/data \
   --entrypoint sh open-agar:planned -c 'chown node:node /data'
 docker run --rm --env-file .env.production \
-  -v agar-data:/app/db/data open-agar:planned node server/db/migrate.js
+  -v agar-data:/app/db/data open-agar:planned node build/server/db/migrate.js
 docker run -d --name agar --restart unless-stopped --init \
   --stop-timeout 40 --env-file .env.production \
   -p 127.0.0.1:3000:3000 -v agar-data:/app/db/data open-agar:planned
@@ -259,7 +260,7 @@ process-management endpoint and no arbitrary upstream address is accepted.
 | Control/admin | 3001; `/admin/`, `/admin/api/v1`, `/admin/ws` | `admin.example.com:443`, IP allowlist + admin auth |
 | Game children | Allocated 3100..3199, loopback in container | Never published |
 
-In managed mode, planned `control/router.js` routes public game requests/WS by
+In managed mode, planned `control/router.ts` routes public game requests/WS by
 validated registry IDs to private child ports. `/api/v1/play/tickets` routes to
 the requested `arenaId`, which is exactly the registry `serverId` at this public
 boundary (including bootstrap `local-1` and managed `arena-<number>` IDs).
@@ -285,7 +286,7 @@ adding another backend stack:
   `client/dist` and `admin/dist`.
 - In runtime, copy `control/` and `admin/dist` (chown node:node), retain `server/`,
   `shared/`, DB migrations and production dependencies.
-- Expose `3000 3001`; change CMD to `["node", "control/index.js"]`.
+- Expose `3000 3001`; change CMD to `["node", "build/control/index.js"]`.
 - Keep `node:24` builder/runtime, non-root user, `--init`, graceful stop, and DB
   volume. Add `admin/node_modules` and `admin/dist` to `.dockerignore`.
   The nested node_modules entry is defensive against accidental installs, not a

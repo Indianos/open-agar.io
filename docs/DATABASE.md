@@ -189,7 +189,7 @@ Match history uses the analogous `(ended_at_ms, id)` descending predicate.
 
 Status: Planned
 
-Planned `server/db/migrate.js` creates the ledger if absent, acquires a single
+Planned `server/db/migrate.ts` creates the ledger if absent, acquires a single
 deployment migration lock, verifies applied checksums, and runs unapplied numbered
 SQL files in transactions. The initial SQL uses `CREATE TABLE IF NOT EXISTS` only
 for the bootstrap migration ledger; its occurrence above describes the final
